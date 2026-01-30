@@ -12,9 +12,13 @@ export class IgnoreService {
     return ig
   }
 
-  static isIgnored(ig: Ignore, relativePath: string): boolean {
+  static isIgnored(ig: Ignore, relativePath: string, isDirectory = false): boolean {
     // Normalize path separators for cross-platform compatibility
-    const normalized = relativePath.replace(/\\/g, '/')
+    let normalized = relativePath.replace(/\\/g, '/')
+    // For directories, append trailing slash to match rules like "**/bin/"
+    if (isDirectory && !normalized.endsWith('/')) {
+      normalized += '/'
+    }
     return ig.ignores(normalized)
   }
 

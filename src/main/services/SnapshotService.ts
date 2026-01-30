@@ -14,17 +14,24 @@ export interface SnapshotOptions {
 
 export class SnapshotService {
   static generateTimestamp(): string {
+    // Use UTC+8 timezone
     const now = new Date()
+    const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000)
     const pad = (n: number, len: number) => n.toString().padStart(len, '0')
     return [
-      now.getUTCFullYear(),
-      pad(now.getUTCMonth() + 1, 2),
-      pad(now.getUTCDate(), 2),
-      pad(now.getUTCHours(), 2),
-      pad(now.getUTCMinutes(), 2),
-      pad(now.getUTCSeconds(), 2),
-      pad(now.getUTCMilliseconds(), 3)
+      utc8.getUTCFullYear(),
+      pad(utc8.getUTCMonth() + 1, 2),
+      pad(utc8.getUTCDate(), 2),
+      pad(utc8.getUTCHours(), 2),
+      pad(utc8.getUTCMinutes(), 2),
+      pad(utc8.getUTCSeconds(), 2),
+      pad(utc8.getUTCMilliseconds(), 3)
     ].join('')
+  }
+
+  static toUTC8ISOString(date: Date = new Date()): string {
+    const utc8 = new Date(date.getTime() + 8 * 60 * 60 * 1000)
+    return utc8.toISOString().replace('Z', '+08:00')
   }
 
   static async list(projectName: string): Promise<SnapshotMeta[]> {
@@ -77,7 +84,7 @@ export class SnapshotService {
         snapshotType: options.snapshotType,
         includedCLIs: options.cliNames,
         source: options.source,
-        createdTime: new Date().toISOString(),
+        createdTime: this.toUTC8ISOString(),
         notes: options.notes || ''
       }
       await fs.writeFile(

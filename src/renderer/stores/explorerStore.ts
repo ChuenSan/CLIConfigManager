@@ -13,6 +13,7 @@ interface ExplorerState {
   setColumns: (columns: FileNode[][]) => void
   setSelectedFile: (path: string | null) => void
   toggleSelection: (path: string) => void
+  selectAll: (paths: string[]) => void
   clearSelection: () => void
   getEffectiveState: (path: string) => 'checked' | 'unchecked' | 'indeterminate'
 }
@@ -49,6 +50,14 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
       newSelection.set(path, 'checked')
     }
 
+    return { selection: newSelection }
+  }),
+
+  selectAll: (paths) => set((state) => {
+    const newSelection = new Map(state.selection)
+    for (const path of paths) {
+      newSelection.set(path, 'checked')
+    }
     return { selection: newSelection }
   }),
 

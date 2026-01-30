@@ -233,7 +233,7 @@ export class SyncService {
       for (const entry of entries) {
         const relPath = basePath ? `${basePath}/${entry.name}` : entry.name
 
-        if (IgnoreService.isIgnored(ig, relPath)) continue
+        if (IgnoreService.isIgnored(ig, relPath, entry.isDirectory())) continue
         if (entry.isSymbolicLink()) continue
 
         const fullPath = path.join(dir, entry.name)
@@ -271,7 +271,7 @@ export class SyncService {
       const destPath = path.join(dest, entry.name)
 
       // Check ignore rules
-      if (IgnoreService.isIgnored(ig, relPath)) continue
+      if (IgnoreService.isIgnored(ig, relPath, entry.isDirectory())) continue
 
       // Skip symlinks (BR-13)
       if (entry.isSymbolicLink()) {

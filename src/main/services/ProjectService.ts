@@ -3,6 +3,7 @@ import path from 'path'
 import { PROJECTS_DIR } from '../paths'
 import { ProjectMeta, ProjectMetaSchema } from '@shared/types'
 import { SettingsService } from './SettingsService'
+import { SnapshotService } from './SnapshotService'
 
 export class ProjectService {
   static async list(): Promise<string[]> {
@@ -81,7 +82,7 @@ export class ProjectService {
     // Write project.json
     const meta: ProjectMeta = {
       projectName: name,
-      createdTime: new Date().toISOString(),
+      createdTime: SnapshotService.toUTC8ISOString(),
       linkedCLIs
     }
     await fs.writeFile(

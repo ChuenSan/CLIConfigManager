@@ -111,7 +111,9 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
     toggleSelection,
     getEffectiveState,
     clearPathStack,
-    clearSelection
+    clearSelection,
+    selectAll,
+    selection
   } = useExplorerStore()
 
   const utils = trpc.useUtils()
@@ -223,7 +225,37 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
   }
 
   const handleDelete = async () => {
-    // Get selected file or current directory from pathStack
+    // Priority 1: Delete checked items
+    const checkedPaths: string[] = []
+    columns.forEach((items, colIndex) => {
+      const basePath = colIndex === 0 ? rootPath : joinPath(rootPath, ...pathStack.slice(0, colIndex))
+      items.forEach(node => {
+        if (selection.get(node.path) === 'checked') {
+          checkedPaths.push(joinPath(basePath, node.name))
+        }
+      })
+    })
+
+    if (checkedPaths.length > 0) {
+      const names = checkedPaths.map(p => p.split(/[\\/]/).pop()).join(', ')
+      const confirmed = confirm(`Delete ${checkedPaths.length} item(s): ${names}?\nThis action cannot be undone.`)
+      if (!confirmed) return
+
+      setDeleting(true)
+      try {
+        for (const path of checkedPaths) {
+          await deleteMutation.mutateAsync({ path })
+        }
+        clearSelection()
+        setSelectedFile(null)
+        onRefresh?.()
+      } finally {
+        setDeleting(false)
+      }
+      return
+    }
+
+    // Priority 2: Delete selected file or current directory
     let targetPath: string | null = null
     let targetName: string | null = null
 
@@ -259,7 +291,21 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
     }
   }
 
-  const canDelete = selectedFile || pathStack.length > 0
+  // Count checked items
+  const checkedCount = Array.from(selection.values()).filter(v => v === 'checked').length
+  const canDelete = checkedCount > 0 || selectedFile || pathStack.length > 0
+
+  // Get all items in current view for Select All
+  const allItemPaths = columns.flatMap(items => items.map(node => node.path))
+  const allChecked = allItemPaths.length > 0 && allItemPaths.every(p => selection.get(p) === 'checked')
+
+  const handleSelectAll = () => {
+    if (allChecked) {
+      clearSelection()
+    } else {
+      selectAll(allItemPaths)
+    }
+  }
 
   const breadcrumbs = [rootPath, ...pathStack]
 
@@ -283,13 +329,21 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
             )
           })}
         </div>
+        {allItemPaths.length > 0 && (
+          <button
+            onClick={handleSelectAll}
+            className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded flex-shrink-0"
+          >
+            {allChecked ? 'Deselect All' : 'Select All'}
+          </button>
+        )}
         {canDelete && (
           <button
             onClick={handleDelete}
             disabled={deleting}
             className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 rounded disabled:opacity-50 flex-shrink-0"
           >
-            {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? 'Deleting...' : checkedCount > 0 ? `Delete (${checkedCount})` : 'Delete'}
           </button>
         )}
       </div>
