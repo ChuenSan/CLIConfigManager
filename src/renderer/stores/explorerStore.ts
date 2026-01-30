@@ -8,6 +8,8 @@ interface ExplorerState {
   selection: Map<string, 'checked' | 'unchecked'>
   pushPath: (path: string) => void
   popToIndex: (index: number) => void
+  setPathStack: (pathStack: string[]) => void
+  clearPathStack: () => void
   setColumns: (columns: FileNode[][]) => void
   setSelectedFile: (path: string | null) => void
   toggleSelection: (path: string) => void
@@ -26,9 +28,12 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
   })),
 
   popToIndex: (index) => set((state) => ({
-    pathStack: state.pathStack.slice(0, index + 1),
-    columns: state.columns.slice(0, index + 2)
+    pathStack: index < 0 ? [] : state.pathStack.slice(0, index + 1)
   })),
+
+  setPathStack: (pathStack) => set({ pathStack }),
+
+  clearPathStack: () => set({ pathStack: [] }),
 
   setColumns: (columns) => set({ columns }),
 
@@ -57,10 +62,11 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
       return selection.get(path)!
     }
 
-    // Check ancestors (nearest wins)
-    const parts = path.split('/')
+    // Check ancestors (nearest wins) - handle both / and \ separators
+    const sep = path.includes('\\') ? '\\' : '/'
+    const parts = path.split(sep)
     for (let i = parts.length - 1; i >= 0; i--) {
-      const ancestor = parts.slice(0, i).join('/')
+      const ancestor = parts.slice(0, i).join(sep)
       if (ancestor && selection.has(ancestor)) {
         return selection.get(ancestor)!
       }
