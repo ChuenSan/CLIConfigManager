@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useProjectStore } from '../stores/projectStore'
 import { useExplorerStore } from '../stores/explorerStore'
 import { trpc } from '../trpc/client'
@@ -9,12 +9,17 @@ import { ProjectMeta } from '@shared/types'
 
 export function ProjectDetailPage() {
   const { currentProjectName, setCurrentProject } = useProjectStore()
-  const { selectedFile, clearSelection } = useExplorerStore()
+  const { selectedFile, clearSelection, setColumns, setSelectedFile } = useExplorerStore()
   const [selectedCli, setSelectedCli] = useState<string | null>(null)
   const [projectMeta, setProjectMeta] = useState<ProjectMeta | null>(null)
   const [showBackups, setShowBackups] = useState(false)
   const [importing, setImporting] = useState(false)
   const [applying, setApplying] = useState(false)
+  const [workingCopyPath, setWorkingCopyPath] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [previewWidth, setPreviewWidth] = useState(50)
+  const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const projectQuery = trpc.projects.get.useQuery(
     { name: currentProjectName || '' },
@@ -23,6 +28,18 @@ export function ProjectDetailPage() {
       onSuccess: (data) => {
         setProjectMeta(data)
         setCurrentProject(data)
+      }
+    }
+  )
+
+  const workingCopyQuery = trpc.projects.getWorkingCopyPath.useQuery(
+    { projectName: currentProjectName || '', cliName: selectedCli || '' },
+    {
+      enabled: !!currentProjectName && !!selectedCli,
+      onSuccess: (data) => {
+        if (data.path) {
+          setWorkingCopyPath(data.path)
+        }
       }
     }
   )
@@ -38,6 +55,14 @@ export function ProjectDetailPage() {
       }
     }
   }, [projectMeta, selectedCli])
+
+  // Reset columns when CLI changes
+  useEffect(() => {
+    setColumns([])
+    clearSelection()
+    setWorkingCopyPath(null)
+    setRefreshKey(k => k + 1)
+  }, [selectedCli])
 
   if (!currentProjectName) {
     return (
@@ -64,9 +89,6 @@ export function ProjectDetailPage() {
   }
 
   const linkedClis = Object.keys(projectMeta.linkedCLIs)
-  const currentCliPath = selectedCli && projectMeta.linkedCLIs[selectedCli]
-    ? projectMeta.linkedCLIs[selectedCli].snapshotInstallPath
-    : null
 
   const handleImport = async () => {
     if (!selectedCli) return
@@ -88,6 +110,9 @@ export function ProjectDetailPage() {
           })
         }
       }
+      // Refresh working copy path and columns after import
+      workingCopyQuery.refetch()
+      setRefreshKey(k => k + 1)
     } finally {
       setImporting(false)
     }
@@ -114,6 +139,28 @@ export function ProjectDetailPage() {
     } finally {
       setApplying(false)
     }
+  }
+
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    resizeRef.current = { startX: e.clientX, startWidth: previewWidth }
+    document.addEventListener('mousemove', handleResizeMove)
+    document.addEventListener('mouseup', handleResizeEnd)
+  }
+
+  const handleResizeMove = (e: MouseEvent) => {
+    if (!resizeRef.current || !containerRef.current) return
+    const containerWidth = containerRef.current.offsetWidth
+    const deltaX = resizeRef.current.startX - e.clientX
+    const deltaPercent = (deltaX / containerWidth) * 100
+    const newWidth = Math.min(80, Math.max(20, resizeRef.current.startWidth + deltaPercent))
+    setPreviewWidth(newWidth)
+  }
+
+  const handleResizeEnd = () => {
+    resizeRef.current = null
+    document.removeEventListener('mousemove', handleResizeMove)
+    document.removeEventListener('mouseup', handleResizeEnd)
   }
 
   return (
@@ -168,17 +215,31 @@ export function ProjectDetailPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div ref={containerRef} className="flex-1 flex overflow-hidden">
         {selectedCli ? (
           <>
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0" style={{ width: `${100 - previewWidth}%` }}>
               <ColumnView
-                rootPath={currentCliPath || ''}
+                rootPath={workingCopyPath || ''}
+                refreshKey={refreshKey}
                 onFileSelect={() => {}}
+                onRefresh={() => setRefreshKey(k => k + 1)}
               />
             </div>
-            <div className="w-1/2 border-l border-gray-700">
-              <FilePreview filePath={selectedFile} className="h-full" />
+            <div
+              className="w-1 cursor-col-resize bg-gray-700 hover:bg-blue-500 flex-shrink-0"
+              onMouseDown={handleResizeStart}
+            />
+            <div className="border-l border-gray-700" style={{ width: `${previewWidth}%` }}>
+              <FilePreview
+                filePath={selectedFile}
+                className="h-full"
+                onDelete={() => {
+                  setSelectedFile(null)
+                  setRefreshKey(k => k + 1)
+                }}
+                onSave={() => {}}
+              />
             </div>
           </>
         ) : (

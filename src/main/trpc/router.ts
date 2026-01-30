@@ -80,6 +80,15 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         return ProjectService.unlinkCli(input.projectName, input.cliName)
+      }),
+
+    getWorkingCopyPath: publicProcedure
+      .input(z.object({
+        projectName: z.string(),
+        cliName: z.string()
+      }))
+      .query(async ({ input }) => {
+        return ProjectService.getWorkingCopyPath(input.projectName, input.cliName)
       })
   }),
 
@@ -186,6 +195,23 @@ export const appRouter = router({
           return { success: true }
         } catch (error) {
           return { success: false, error: 'Failed to write file' }
+        }
+      }),
+
+    deleteFile: publicProcedure
+      .input(z.object({ path: z.string() }))
+      .mutation(async ({ input }) => {
+        const fs = await import('fs/promises')
+        try {
+          const stat = await fs.stat(input.path)
+          if (stat.isDirectory()) {
+            await fs.rm(input.path, { recursive: true, force: true })
+          } else {
+            await fs.unlink(input.path)
+          }
+          return { success: true }
+        } catch (error) {
+          return { success: false, error: 'Failed to delete' }
         }
       })
   }),

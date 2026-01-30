@@ -13,7 +13,7 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({ exclude: ['electron-trpc'] })],
     resolve: {
       alias: {
         '@shared': resolve('src/shared')

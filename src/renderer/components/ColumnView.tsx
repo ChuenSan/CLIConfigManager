@@ -90,6 +90,7 @@ interface ColumnViewProps {
   rootPath: string
   refreshKey?: number
   onFileSelect?: (path: string) => void
+  onRefresh?: () => void
 }
 
 // Helper to join paths correctly for the current OS
@@ -99,7 +100,7 @@ function joinPath(base: string, ...parts: string[]): string {
   return [base, ...parts.filter(p => p)].join(sep)
 }
 
-export function ColumnView({ rootPath, refreshKey = 0, onFileSelect }: ColumnViewProps) {
+export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }: ColumnViewProps) {
   const {
     pathStack,
     columns,
@@ -109,7 +110,8 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect }: ColumnVie
     setSelectedFile,
     toggleSelection,
     getEffectiveState,
-    clearPathStack
+    clearPathStack,
+    clearSelection
   } = useExplorerStore()
 
   const utils = trpc.useUtils()
@@ -117,6 +119,8 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect }: ColumnVie
   const columnsContainerRef = useRef<HTMLDivElement>(null)
   const [columnWidths, setColumnWidths] = useState<number[]>([])
   const baseWidthRef = useRef<number[]>([])
+  const [deleting, setDeleting] = useState(false)
+  const deleteMutation = trpc.fs.deleteFile.useMutation()
 
   // Sync column widths with columns count
   useEffect(() => {
@@ -218,26 +222,76 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect }: ColumnVie
     setSelectedFile(null)
   }
 
+  const handleDelete = async () => {
+    // Get selected file or current directory from pathStack
+    let targetPath: string | null = null
+    let targetName: string | null = null
+
+    if (selectedFile) {
+      targetPath = selectedFile
+      targetName = selectedFile.split(/[\\/]/).pop() || null
+    } else if (pathStack.length > 0) {
+      targetPath = joinPath(rootPath, ...pathStack)
+      targetName = pathStack[pathStack.length - 1]
+    }
+
+    if (!targetPath || !targetName) return
+
+    const confirmed = confirm(`Delete "${targetName}"? This action cannot be undone.`)
+    if (!confirmed) return
+
+    setDeleting(true)
+    try {
+      const result = await deleteMutation.mutateAsync({ path: targetPath })
+      if (result.success) {
+        if (selectedFile) {
+          setSelectedFile(null)
+        } else {
+          setPathStack(pathStack.slice(0, -1))
+        }
+        clearSelection()
+        onRefresh?.()
+      } else {
+        alert('Failed to delete')
+      }
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const canDelete = selectedFile || pathStack.length > 0
+
   const breadcrumbs = [rootPath, ...pathStack]
 
   return (
     <div className="flex flex-col h-full bg-gray-900">
-      {/* Breadcrumb */}
+      {/* Breadcrumb + Delete Button */}
       <div className="flex items-center gap-1 px-3 py-2 bg-gray-800 border-b border-gray-700 text-sm overflow-x-auto">
-        {breadcrumbs.map((p, i) => {
-          const name = p.split(/[\\/]/).pop() || p
-          return (
-            <span key={i} className="flex items-center whitespace-nowrap">
-              {i > 0 && <span className="mx-1 text-gray-500">/</span>}
-              <button
-                onClick={() => handleBreadcrumbClick(i - 1)}
-                className="hover:text-blue-400 truncate max-w-[150px]"
-              >
-                {name}
-              </button>
-            </span>
-          )
-        })}
+        <div className="flex-1 flex items-center gap-1 overflow-x-auto">
+          {breadcrumbs.map((p, i) => {
+            const name = p.split(/[\\/]/).pop() || p
+            return (
+              <span key={i} className="flex items-center whitespace-nowrap">
+                {i > 0 && <span className="mx-1 text-gray-500">/</span>}
+                <button
+                  onClick={() => handleBreadcrumbClick(i - 1)}
+                  className="hover:text-blue-400 truncate max-w-[150px]"
+                >
+                  {name}
+                </button>
+              </span>
+            )
+          })}
+        </div>
+        {canDelete && (
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 rounded disabled:opacity-50 flex-shrink-0"
+          >
+            {deleting ? 'Deleting...' : 'Delete'}
+          </button>
+        )}
       </div>
 
       {/* Columns */}
@@ -248,6 +302,9 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect }: ColumnVie
           </div>
         ) : (
           columns.map((items, i) => {
+            // Skip empty columns (except the first one)
+            if (i > 0 && items.length === 0) return null
+
             // Determine which item is selected in this column
             let selectedName: string | null = null
             if (i < pathStack.length) {
@@ -255,6 +312,9 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect }: ColumnVie
             } else if (selectedFile && i === columns.length - 1) {
               selectedName = selectedFile.split(/[\\/]/).pop() || null
             }
+
+            // Find the actual last visible column
+            const isLastVisible = columns.slice(i + 1).every(col => col.length === 0)
 
             return (
               <Column
@@ -267,7 +327,7 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect }: ColumnVie
                 width={columnWidths[i] || 220}
                 onResize={(delta) => handleColumnResize(i, delta)}
                 onResizeEnd={finalizeResize}
-                isLast={i === columns.length - 1}
+                isLast={isLastVisible}
               />
             )
           })

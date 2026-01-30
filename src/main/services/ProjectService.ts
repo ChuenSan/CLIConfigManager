@@ -166,4 +166,16 @@ export class ProjectService {
 
     return { success: true }
   }
+
+  static async getWorkingCopyPath(projectName: string, cliName: string): Promise<{ path: string | null }> {
+    const meta = await this.getMeta(projectName)
+    if (!meta) return { path: null }
+
+    const cliKey = Object.keys(meta.linkedCLIs).find(
+      k => k.toLowerCase() === cliName.toLowerCase()
+    )
+    if (!cliKey) return { path: null }
+
+    return { path: path.join(this.getProjectPath(projectName), cliKey) }
+  }
 }
