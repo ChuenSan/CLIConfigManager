@@ -359,26 +359,27 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
     cancelRename()
   }
 
-  // F2 key handler
+  // F2 key handler - only allow rename when exactly one item is checked
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'F2' && !editingName) {
-        // Find selected item to rename
-        if (selectedFile) {
-          const fileName = selectedFile.split(/[\\/]/).pop()
-          if (fileName) {
-            startRename(fileName, pathStack.length)
+      if (e.key === 'F2' && !editingName && checkedCount === 1) {
+        const checkedPath = Array.from(selection.entries())
+          .find(([_, state]) => state === 'checked')?.[0]
+        if (checkedPath) {
+          for (let i = 0; i < columns.length; i++) {
+            const item = columns[i].find(node => node.path === checkedPath)
+            if (item) {
+              startRename(item.name, i)
+              return
+            }
           }
-        } else if (pathStack.length > 0) {
-          const dirName = pathStack[pathStack.length - 1]
-          startRename(dirName, pathStack.length - 1)
         }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedFile, pathStack, editingName])
+  }, [editingName, checkedCount, selection, columns])
 
   const breadcrumbs = [rootPath, ...pathStack]
 

@@ -127,7 +127,7 @@ export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fade-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-bg rounded-xl border border-app-border shadow-2xl z-50 w-[90vw] max-w-5xl h-[85vh] flex flex-col overflow-hidden animate-slide-in focus:outline-none">
+        <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-bg rounded-xl border border-app-border shadow-2xl z-50 w-[90vw] max-w-5xl h-[85vh] flex flex-col overflow-hidden animate-slide-in focus:outline-none">
 
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 bg-app-surface border-b border-app-border select-none">

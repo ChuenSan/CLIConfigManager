@@ -55,7 +55,7 @@ function EditCliDialog({ projectName, open, onOpenChange, cliNames, onLink, onUn
       <Dialog.Root open={open} onOpenChange={onOpenChange}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-96 border border-app-border shadow-2xl animate-slide-in">
+          <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-96 border border-app-border shadow-2xl animate-slide-in">
             <Dialog.Title className="text-lg font-semibold text-app-text mb-4">
               {t('editCli.title', { projectName })}
             </Dialog.Title>
@@ -252,7 +252,7 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
       <Dialog.Root open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-96 border border-app-border shadow-2xl animate-slide-in">
+          <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-96 border border-app-border shadow-2xl animate-slide-in">
             <Dialog.Title className="text-lg font-semibold text-app-text mb-4">{t('createProject.title')}</Dialog.Title>
             <input
               type="text"
@@ -437,7 +437,7 @@ function SettingsPage() {
       <Dialog.Root open={showAddDialog} onOpenChange={setShowAddDialog}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-96 border border-app-border shadow-2xl animate-slide-in">
+          <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-96 border border-app-border shadow-2xl animate-slide-in">
             <Dialog.Title className="text-lg font-semibold text-app-text mb-4">{t('addCli.title')}</Dialog.Title>
             <input
               type="text"
@@ -479,7 +479,7 @@ function SettingsPage() {
       <Dialog.Root open={editingIgnore} onOpenChange={setEditingIgnore}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-[500px] border border-app-border shadow-2xl animate-slide-in">
+          <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-[500px] border border-app-border shadow-2xl animate-slide-in">
             <Dialog.Title className="text-lg font-semibold text-app-text mb-4">{t('editIgnore.title')}</Dialog.Title>
             <textarea
               value={ignoreText}

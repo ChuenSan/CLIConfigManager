@@ -8,6 +8,11 @@ import { SettingsService } from './SettingsService'
 import { IgnoreService } from './IgnoreService'
 import { SnapshotService } from './SnapshotService'
 
+const DEBUG = true
+function debugLog(msg: string, data?: unknown) {
+  if (DEBUG) console.log(`[SyncService] ${msg}`, data ?? '')
+}
+
 export interface LargeFileInfo {
   path: string
   size: number
@@ -60,6 +65,8 @@ export class SyncService {
     cliName: string,
     selectedPaths?: string[]
   ): Promise<OperationResult> {
+    debugLog(`apply: project=${projectName}, cli=${cliName}, selectedPaths=${selectedPaths?.length ?? 'all'}`)
+
     const meta = await ProjectService.getMeta(projectName)
     if (!meta) return { success: false, errors: ['Project not found'] }
 
@@ -70,6 +77,9 @@ export class SyncService {
 
     const installPath = meta.linkedCLIs[cliKey].snapshotInstallPath
     const workingCopy = path.join(ProjectService.getProjectPath(projectName), cliKey)
+
+    debugLog(`installPath: ${installPath} (len=${installPath.length})`)
+    debugLog(`workingCopy: ${workingCopy} (len=${workingCopy.length})`)
 
     // Compile ignore rules
     const settings = await SettingsService.read()
@@ -108,7 +118,7 @@ export class SyncService {
             await this.copyWithIgnore(srcPath, destPath, ig, relPath, warnings)
           } else {
             await fs.mkdir(path.dirname(destPath), { recursive: true })
-            await fs.copyFile(srcPath, destPath)
+            await this.safeCopyFile(srcPath, destPath, relPath)
           }
         }
       } else {
@@ -119,19 +129,35 @@ export class SyncService {
       return { success: true, warnings: warnings.length > 0 ? warnings : undefined }
     } catch (error) {
       // Step 3: Auto-rollback on failure (BR-12)
+      const err = error as NodeJS.ErrnoException
+      debugLog(`Apply FAILED, starting rollback...`)
+      debugLog(`Error: ${err.code} - ${err.message}`)
+      debugLog(`Error details:`, {
+        code: err.code,
+        errno: err.errno,
+        syscall: err.syscall,
+        path: err.path,
+        dest: (err as { dest?: string }).dest
+      })
+
       const snapshotPath = SnapshotService.getSnapshotPath(projectName, backupResult.timestamp!)
       const backupCliPath = path.join(snapshotPath, cliKey)
 
       try {
         await fs.rm(installPath, { recursive: true, force: true })
         await this.copyDirectory(backupCliPath, installPath)
-      } catch {
-        // Rollback failed - critical error
+        debugLog(`Rollback SUCCESS`)
+      } catch (rollbackErr) {
+        debugLog(`Rollback FAILED:`, rollbackErr)
       }
+
+      const errMsg = err.code === 'EPERM'
+        ? `EPERM: 权限被拒绝，文件可能被占用或只读\n源: ${err.path}\n目标: ${(err as { dest?: string }).dest}`
+        : (error instanceof Error ? error.message : 'Unknown error')
 
       return {
         success: false,
-        errors: [`Apply failed and rolled back: ${error instanceof Error ? error.message : 'Unknown error'}`]
+        errors: [`Apply failed and rolled back: ${errMsg}`]
       }
     }
   }
@@ -262,6 +288,7 @@ export class SyncService {
     basePath: string,
     warnings: string[]
   ): Promise<void> {
+    debugLog(`copyWithIgnore: ${src} -> ${dest}`)
     await fs.mkdir(dest, { recursive: true })
     const entries = await fs.readdir(src, { withFileTypes: true })
 
@@ -282,12 +309,64 @@ export class SyncService {
       if (entry.isDirectory()) {
         await this.copyWithIgnore(srcPath, destPath, ig, relPath, warnings)
       } else {
-        await fs.copyFile(srcPath, destPath)
+        await this.safeCopyFile(srcPath, destPath, relPath)
+      }
+    }
+  }
+
+  private static async safeCopyFile(src: string, dest: string, relPath: string): Promise<void> {
+    debugLog(`Copying file: ${relPath}`)
+    debugLog(`  src: ${src} (len=${src.length})`)
+    debugLog(`  dest: ${dest} (len=${dest.length})`)
+
+    const maxRetries = 3
+    const retryDelay = 500
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Check source file stats
+        const srcStat = await fs.stat(src)
+        debugLog(`  srcStat: size=${srcStat.size}, mode=${srcStat.mode.toString(8)}`)
+
+        // Check if dest exists
+        try {
+          const destStat = await fs.stat(dest)
+          debugLog(`  destStat: size=${destStat.size}, mode=${destStat.mode.toString(8)}`)
+          // Try to remove readonly attribute on Windows
+          if (process.platform === 'win32') {
+            await fs.chmod(dest, 0o666)
+            debugLog(`  Removed readonly from dest`)
+          }
+        } catch {
+          debugLog(`  dest does not exist (OK)`)
+        }
+
+        await fs.copyFile(src, dest)
+        debugLog(`  Copy SUCCESS`)
+        return
+      } catch (error) {
+        const err = error as NodeJS.ErrnoException
+        debugLog(`  Copy FAILED (attempt ${attempt}/${maxRetries}): ${err.code} - ${err.message}`)
+        debugLog(`  Error details:`, {
+          code: err.code,
+          errno: err.errno,
+          syscall: err.syscall,
+          path: err.path,
+          dest: err.dest
+        })
+
+        if (attempt < maxRetries && (err.code === 'EPERM' || err.code === 'EBUSY')) {
+          debugLog(`  Retrying in ${retryDelay}ms...`)
+          await new Promise(resolve => setTimeout(resolve, retryDelay))
+        } else {
+          throw error
+        }
       }
     }
   }
 
   private static async copyDirectory(src: string, dest: string): Promise<void> {
+    debugLog(`copyDirectory: ${src} -> ${dest}`)
     await fs.mkdir(dest, { recursive: true })
     const entries = await fs.readdir(src, { withFileTypes: true })
 
@@ -300,7 +379,7 @@ export class SyncService {
       if (entry.isDirectory()) {
         await this.copyDirectory(srcPath, destPath)
       } else {
-        await fs.copyFile(srcPath, destPath)
+        await this.safeCopyFile(srcPath, destPath, entry.name)
       }
     }
   }
