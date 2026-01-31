@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { trpc } from '../trpc/client'
 import { useExplorerStore } from '../stores/explorerStore'
 import { FileNode } from '@shared/types'
+import { Folder, File, ChevronRight } from 'lucide-react'
+import { clsx } from 'clsx'
 
 interface ColumnProps {
   items: FileNode[]
@@ -39,8 +41,8 @@ function Column({ items, selectedName, onSelect, onCheck, getCheckState, width, 
   }
 
   return (
-    <div className="relative h-full flex-shrink-0" style={{ width: `${width}px`, minWidth: '120px' }}>
-      <div className="h-full border-r border-gray-700 overflow-y-auto overflow-x-hidden">
+    <div className="relative h-full flex-shrink-0 animate-column-in" style={{ width: `${width}px`, minWidth: '150px' }}>
+      <div className="h-full border-r border-app-border overflow-y-auto overflow-x-hidden">
       {items.map((node) => {
         const checkState = getCheckState(node.path)
         const isSelected = selectedName === node.name
@@ -48,9 +50,12 @@ function Column({ items, selectedName, onSelect, onCheck, getCheckState, width, 
         return (
           <div
             key={node.name}
-            className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-700 ${
-              isSelected ? 'bg-gray-700' : ''
-            }`}
+            className={clsx(
+              'flex items-center gap-2 px-3 py-2 cursor-default text-[13px] select-none transition-colors',
+              isSelected
+                ? 'bg-primary text-white'
+                : 'text-app-text hover:bg-app-surface-hover'
+            )}
             onClick={() => onSelect(node)}
             title={node.name}
           >
@@ -65,20 +70,33 @@ function Column({ items, selectedName, onSelect, onCheck, getCheckState, width, 
                 onCheck(node.path)
               }}
               onClick={(e) => e.stopPropagation()}
-              className="w-4 h-4 accent-blue-500 flex-shrink-0"
+              className={clsx(
+                'w-3.5 h-3.5 rounded flex-shrink-0',
+                isSelected ? 'accent-white' : 'accent-primary'
+              )}
             />
-            <span className={`flex-1 truncate ${node.isDirectory ? 'font-medium' : ''}`}>
-              {node.isDirectory ? '📁 ' : '📄 '}
+            <span className={clsx(
+              'flex-shrink-0',
+              isSelected ? 'text-white/80' : 'text-primary'
+            )}>
+              {node.isDirectory ? <Folder size={16} /> : <File size={16} />}
+            </span>
+            <span className={clsx('flex-1 truncate', node.isDirectory && 'font-medium')}>
               {node.name}
             </span>
-            {node.isDirectory && <span className="text-gray-500 flex-shrink-0">›</span>}
+            {node.isDirectory && (
+              <ChevronRight size={14} className={clsx(
+                'flex-shrink-0',
+                isSelected ? 'text-white/60' : 'text-app-text-muted'
+              )} />
+            )}
           </div>
         )
       })}
       </div>
       {!isLast && (
         <div
-          className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 z-10"
+          className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary transition-colors z-10"
           onMouseDown={handleMouseDown}
         />
       )}
@@ -208,8 +226,10 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
       setPathStack(newPathStack)
       setSelectedFile(null)
     } else {
-      const pathParts = pathStack.slice(0, columnIndex)
-      const fullPath = joinPath(rootPath, ...pathParts, node.name)
+      // 选中文件时，截断 pathStack 到当前列，清除后续列
+      const newPathStack = pathStack.slice(0, columnIndex)
+      setPathStack(newPathStack)
+      const fullPath = joinPath(rootPath, ...newPathStack, node.name)
       setSelectedFile(fullPath)
       onFileSelect?.(fullPath)
     }
@@ -311,18 +331,18 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
   const breadcrumbs = [rootPath, ...pathStack]
 
   return (
-    <div className="flex flex-col h-full bg-gray-900">
-      {/* Breadcrumb + Delete Button */}
-      <div className="flex items-center gap-1 px-3 py-2 bg-gray-800 border-b border-gray-700 text-sm overflow-x-auto">
+    <div className="flex flex-col h-full bg-app-bg">
+      {/* Breadcrumb + Actions */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-app-surface border-b border-app-border text-sm">
         <div className="flex-1 flex items-center gap-1 overflow-x-auto">
           {breadcrumbs.map((p, i) => {
             const name = p.split(/[\\/]/).pop() || p
             return (
               <span key={i} className="flex items-center whitespace-nowrap">
-                {i > 0 && <span className="mx-1 text-gray-500">/</span>}
+                {i > 0 && <span className="mx-1 text-app-text-muted">/</span>}
                 <button
                   onClick={() => handleBreadcrumbClick(i - 1)}
-                  className="hover:text-blue-400 truncate max-w-[150px]"
+                  className="hover:text-primary transition-colors truncate max-w-[150px] text-app-text"
                 >
                   {name}
                 </button>
@@ -333,7 +353,7 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
         {currentFolderPaths.length > 0 && (
           <button
             onClick={handleSelectAll}
-            className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded flex-shrink-0"
+            className="px-2 py-1 text-xs bg-app-surface-hover text-app-text hover:bg-app-border rounded-md transition-colors flex-shrink-0"
           >
             {allChecked ? 'Deselect All' : 'Select All'}
           </button>
@@ -342,7 +362,7 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 rounded disabled:opacity-50 flex-shrink-0"
+            className="px-2 py-1 text-xs bg-danger text-white hover:bg-red-600 rounded-md transition-colors disabled:opacity-50 flex-shrink-0"
           >
             {deleting ? 'Deleting...' : checkedCount > 0 ? `Delete (${checkedCount})` : 'Delete'}
           </button>
@@ -352,15 +372,13 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
       {/* Columns */}
       <div ref={columnsContainerRef} className="flex-1 flex overflow-x-auto">
         {columns.length === 0 ? (
-          <div className="flex items-center justify-center w-full text-gray-500">
+          <div className="flex items-center justify-center w-full text-app-text-muted">
             {rootPath ? 'No files to display' : 'Import files first'}
           </div>
         ) : (
           columns.map((items, i) => {
-            // Skip empty columns (except the first one)
             if (i > 0 && items.length === 0) return null
 
-            // Determine which item is selected in this column
             let selectedName: string | null = null
             if (i < pathStack.length) {
               selectedName = pathStack[i]
@@ -368,7 +386,6 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
               selectedName = selectedFile.split(/[\\/]/).pop() || null
             }
 
-            // Find the actual last visible column
             const isLastVisible = columns.slice(i + 1).every(col => col.length === 0)
 
             return (

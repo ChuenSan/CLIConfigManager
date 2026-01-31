@@ -1,6 +1,8 @@
 import { useRef, useEffect, useState } from 'react'
 import { trpc } from '../trpc/client'
 import { EDITOR_READONLY_THRESHOLD } from '@shared/constants'
+import { Edit3, Save, X, Trash2, Eye, Code } from 'lucide-react'
+import { clsx } from 'clsx'
 
 interface FilePreviewProps {
   filePath: string | null
@@ -120,7 +122,7 @@ export function FilePreview({ filePath, className = '', onDelete, onSave }: File
 
   if (!filePath) {
     return (
-      <div className={`flex items-center justify-center bg-gray-900 text-gray-500 ${className}`}>
+      <div className={clsx('flex items-center justify-center bg-app-bg text-app-text-muted', className)}>
         Select a file to preview
       </div>
     )
@@ -128,7 +130,7 @@ export function FilePreview({ filePath, className = '', onDelete, onSave }: File
 
   if (readFileQuery.isLoading) {
     return (
-      <div className={`flex items-center justify-center bg-gray-900 text-gray-500 ${className}`}>
+      <div className={clsx('flex items-center justify-center bg-app-bg text-app-text-muted', className)}>
         Loading...
       </div>
     )
@@ -137,36 +139,39 @@ export function FilePreview({ filePath, className = '', onDelete, onSave }: File
   const fileName = filePath.split(/[\\/]/).pop() || ''
 
   return (
-    <div className={`flex flex-col bg-gray-900 ${className}`}>
+    <div className={clsx('flex flex-col bg-app-bg', className)}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-gray-800 border-b border-gray-700">
-        <span className="text-sm font-medium truncate flex-1">{fileName}</span>
+      <div className="flex items-center gap-2 px-3 py-2 bg-app-surface border-b border-app-border">
+        <span className="text-sm font-medium truncate flex-1 text-app-text">{fileName}</span>
         {hasChanges && (
-          <span className="text-xs px-1.5 py-0.5 bg-orange-600/30 text-orange-400 rounded">
+          <span className="text-xs px-1.5 py-0.5 bg-yellow-600/20 text-yellow-400 rounded">
             Modified
           </span>
         )}
         {isReadOnly && (
-          <span className="text-xs px-1.5 py-0.5 bg-yellow-600/30 text-yellow-400 rounded">
+          <span className="text-xs px-1.5 py-0.5 bg-app-surface-hover text-app-text-muted rounded">
             Read-only ({Math.round(fileSize / 1024 / 1024)}MB)
           </span>
         )}
         {isMarkdown && !isEditing && (
           <button
             onClick={() => setShowPreview(!showPreview)}
-            className={`text-xs px-2 py-1 rounded ${
-              showPreview ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'
-            }`}
+            className={clsx(
+              'p-1.5 rounded-md transition-colors',
+              showPreview ? 'bg-primary text-white' : 'text-app-text-muted hover:bg-app-surface-hover hover:text-app-text'
+            )}
+            title={showPreview ? 'Show source' : 'Show preview'}
           >
-            {showPreview ? 'Source' : 'Preview'}
+            {showPreview ? <Code size={14} /> : <Eye size={14} />}
           </button>
         )}
         {!isReadOnly && !isEditing && (
           <button
             onClick={() => setIsEditing(true)}
-            className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600"
+            className="p-1.5 rounded-md text-app-text-muted hover:bg-app-surface-hover hover:text-app-text transition-colors"
+            title="Edit"
           >
-            Edit
+            <Edit3 size={14} />
           </button>
         )}
         {isEditing && (
@@ -174,23 +179,26 @@ export function FilePreview({ filePath, className = '', onDelete, onSave }: File
             <button
               onClick={handleSave}
               disabled={saving || !hasChanges}
-              className="text-xs px-2 py-1 rounded bg-green-600 hover:bg-green-700 disabled:opacity-50"
+              className="p-1.5 rounded-md bg-success text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
+              title="Save"
             >
-              {saving ? 'Saving...' : 'Save'}
+              <Save size={14} />
             </button>
             <button
               onClick={handleCancel}
-              className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600"
+              className="p-1.5 rounded-md text-app-text-muted hover:bg-app-surface-hover hover:text-app-text transition-colors"
+              title="Cancel"
             >
-              Cancel
+              <X size={14} />
             </button>
           </>
         )}
         <button
           onClick={handleDelete}
-          className="text-xs px-2 py-1 rounded bg-red-600 hover:bg-red-700"
+          className="p-1.5 rounded-md text-danger hover:bg-danger-surface transition-colors"
+          title="Delete"
         >
-          Delete
+          <Trash2 size={14} />
         </button>
       </div>
 
@@ -201,16 +209,16 @@ export function FilePreview({ filePath, className = '', onDelete, onSave }: File
             ref={textareaRef}
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="w-full h-full p-4 text-sm font-mono bg-gray-900 text-gray-300 resize-none focus:outline-none"
+            className="w-full h-full p-4 text-sm font-mono bg-app-bg text-app-text resize-none focus:outline-none"
             spellCheck={false}
           />
         ) : isMarkdown && showPreview ? (
           <div
-            className="p-4 prose prose-invert max-w-none"
+            className="p-4 prose prose-invert max-w-none text-app-text"
             dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
           />
         ) : (
-          <pre className="p-4 text-sm font-mono whitespace-pre-wrap text-gray-300">
+          <pre className="p-4 text-sm font-mono whitespace-pre-wrap text-app-text-muted">
             <code>{content}</code>
           </pre>
         )}

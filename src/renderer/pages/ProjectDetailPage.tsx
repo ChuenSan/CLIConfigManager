@@ -6,6 +6,7 @@ import { ColumnView } from '../components/ColumnView'
 import { FilePreview } from '../components/FilePreview'
 import { BackupManager } from '../components/BackupManager'
 import { ProjectMeta } from '@shared/types'
+import { Download, Upload, Archive } from 'lucide-react'
 
 export function ProjectDetailPage() {
   const { currentProjectName, setCurrentProject } = useProjectStore()
@@ -66,7 +67,7 @@ export function ProjectDetailPage() {
 
   if (!currentProjectName) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-500">
+      <div className="flex-1 flex items-center justify-center text-app-text-muted bg-app-bg">
         Select a project from the list
       </div>
     )
@@ -74,7 +75,7 @@ export function ProjectDetailPage() {
 
   if (projectQuery.isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-500">
+      <div className="flex-1 flex items-center justify-center text-app-text-muted bg-app-bg">
         Loading project...
       </div>
     )
@@ -82,7 +83,7 @@ export function ProjectDetailPage() {
 
   if (!projectMeta) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-500">
+      <div className="flex-1 flex items-center justify-center text-app-text-muted bg-app-bg">
         Project not found
       </div>
     )
@@ -164,25 +165,25 @@ export function ProjectDetailPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full">
+    <div className="flex-1 flex flex-col h-full bg-app-bg">
       {/* Header */}
-      <div className="px-4 py-3 bg-gray-800 border-b border-gray-700">
-        <h1 className="text-lg font-semibold">{projectMeta.projectName}</h1>
-        <p className="text-sm text-gray-400">
+      <div className="px-4 py-3 bg-app-surface border-b border-app-border">
+        <h1 className="text-lg font-semibold text-app-text">{projectMeta.projectName}</h1>
+        <p className="text-sm text-app-text-muted">
           Created: {new Date(projectMeta.createdTime).toLocaleDateString()}
         </p>
       </div>
 
       {/* CLI Selector + Actions */}
-      <div className="flex items-center gap-3 px-4 py-2 bg-gray-850 border-b border-gray-700">
-        <span className="text-sm text-gray-400">CLI:</span>
+      <div className="flex items-center gap-3 px-4 py-2 bg-app-surface border-b border-app-border">
+        <span className="text-sm text-app-text-muted">CLI:</span>
         <select
           value={selectedCli || ''}
           onChange={(e) => {
             setSelectedCli(e.target.value || null)
             clearSelection()
           }}
-          className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm"
+          className="bg-app-bg border border-app-border rounded-md px-2 py-1.5 text-sm text-app-text focus:outline-none focus:ring-2 focus:ring-primary"
         >
           {linkedClis.length === 0 && <option value="">No CLIs linked</option>}
           {linkedClis.map((cli) => (
@@ -195,21 +196,24 @@ export function ProjectDetailPage() {
         <button
           onClick={handleImport}
           disabled={!selectedCli || importing}
-          className="px-3 py-1.5 bg-blue-600 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+          className="flex items-center gap-2 px-3 py-1.5 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50"
         >
+          <Download size={14} />
           {importing ? 'Importing...' : 'Import from CLI'}
         </button>
         <button
           onClick={handleApply}
           disabled={!selectedCli || applying}
-          className="px-3 py-1.5 bg-green-600 rounded text-sm hover:bg-green-700 disabled:opacity-50"
+          className="flex items-center gap-2 px-3 py-1.5 bg-success-surface text-success rounded-md text-sm font-medium hover:bg-emerald-600/20 border border-emerald-600/20 transition-colors disabled:opacity-50"
         >
+          <Upload size={14} />
           {applying ? 'Applying...' : 'Apply to CLI'}
         </button>
         <button
           onClick={() => setShowBackups(true)}
-          className="px-3 py-1.5 bg-gray-700 rounded text-sm hover:bg-gray-600"
+          className="flex items-center gap-2 px-3 py-1.5 bg-app-surface-hover text-app-text rounded-md text-sm font-medium hover:bg-app-border transition-colors"
         >
+          <Archive size={14} />
           Backups
         </button>
       </div>
@@ -218,7 +222,7 @@ export function ProjectDetailPage() {
       <div ref={containerRef} className="flex-1 flex overflow-hidden">
         {selectedCli ? (
           <>
-            <div className="min-w-0" style={{ width: `${100 - previewWidth}%` }}>
+            <div className="min-w-0 flex-1" style={selectedFile ? { width: `${100 - previewWidth}%`, flex: 'none' } : undefined}>
               <ColumnView
                 rootPath={workingCopyPath || ''}
                 refreshKey={refreshKey}
@@ -226,24 +230,28 @@ export function ProjectDetailPage() {
                 onRefresh={() => setRefreshKey(k => k + 1)}
               />
             </div>
-            <div
-              className="w-1 cursor-col-resize bg-gray-700 hover:bg-blue-500 flex-shrink-0"
-              onMouseDown={handleResizeStart}
-            />
-            <div className="border-l border-gray-700" style={{ width: `${previewWidth}%` }}>
-              <FilePreview
-                filePath={selectedFile}
-                className="h-full"
-                onDelete={() => {
-                  setSelectedFile(null)
-                  setRefreshKey(k => k + 1)
-                }}
-                onSave={() => {}}
-              />
-            </div>
+            {selectedFile && (
+              <>
+                <div
+                  className="w-1 cursor-col-resize bg-app-border hover:bg-primary flex-shrink-0 transition-colors"
+                  onMouseDown={handleResizeStart}
+                />
+                <div className="border-l border-app-border" style={{ width: `${previewWidth}%` }}>
+                  <FilePreview
+                    filePath={selectedFile}
+                    className="h-full"
+                    onDelete={() => {
+                      setSelectedFile(null)
+                      setRefreshKey(k => k + 1)
+                    }}
+                    onSave={() => {}}
+                  />
+                </div>
+              </>
+            )}
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
+          <div className="flex-1 flex items-center justify-center text-app-text-muted">
             Select a CLI to browse files
           </div>
         )}
