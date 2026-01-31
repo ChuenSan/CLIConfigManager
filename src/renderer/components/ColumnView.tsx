@@ -295,15 +295,16 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
   const checkedCount = Array.from(selection.values()).filter(v => v === 'checked').length
   const canDelete = checkedCount > 0 || selectedFile || pathStack.length > 0
 
-  // Get all items in current view for Select All
-  const allItemPaths = columns.flatMap(items => items.map(node => node.path))
-  const allChecked = allItemPaths.length > 0 && allItemPaths.every(p => selection.get(p) === 'checked')
+  // Get items in current active folder for Select All
+  const currentFolderItems = columns[pathStack.length] || []
+  const currentFolderPaths = currentFolderItems.map(node => node.path)
+  const allChecked = currentFolderPaths.length > 0 && currentFolderPaths.every(p => selection.get(p) === 'checked')
 
   const handleSelectAll = () => {
     if (allChecked) {
       clearSelection()
     } else {
-      selectAll(allItemPaths)
+      selectAll(currentFolderPaths)
     }
   }
 
@@ -329,7 +330,7 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
             )
           })}
         </div>
-        {allItemPaths.length > 0 && (
+        {currentFolderPaths.length > 0 && (
           <button
             onClick={handleSelectAll}
             className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded flex-shrink-0"
