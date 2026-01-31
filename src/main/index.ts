@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, Menu } from 'electron'
 import path from 'path'
 import { createIPCHandler } from 'electron-trpc/main'
 import { appRouter } from './trpc/router'
@@ -19,6 +19,9 @@ if (!gotLock) {
   })
 
   app.whenReady().then(async () => {
+    // Remove default menu
+    Menu.setApplicationMenu(null)
+
     // Initialize workspace
     await WorkspaceService.init()
 
