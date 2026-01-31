@@ -1,0 +1,133 @@
+{
+  "nav": {
+    "projects": "项目",
+    "settings": "设置",
+    "configManager": "配置管理器"
+  },
+  "home": {
+    "title": "项目",
+    "newProject": "新建项目",
+    "configureCliFirst": "请先在设置中配置 CLI 路径，然后再创建项目。",
+    "noProjects": "暂无项目。",
+    "open": "打开",
+    "edit": "编辑",
+    "delete": "删除"
+  },
+  "createProject": {
+    "title": "创建项目",
+    "namePlaceholder": "项目名称",
+    "selectClis": "选择 CLI：",
+    "cancel": "取消",
+    "create": "创建"
+  },
+  "editCli": {
+    "title": "编辑 CLI - {{projectName}}",
+    "loading": "加载中...",
+    "noClisRegistered": "未注册任何 CLI。请先在设置中添加 CLI。",
+    "done": "完成",
+    "unlinkConfirm": "此操作将永久删除项目内的该 CLI 配置副本，但不会影响系统安装目录和历史备份。\n\n确定要移除吗？"
+  },
+  "settings": {
+    "title": "设置",
+    "language": "语言",
+    "cliRegistry": "CLI 注册表",
+    "addCli": "添加 CLI",
+    "noClisRegistered": "未注册任何 CLI。",
+    "remove": "移除",
+    "globalIgnoreRules": "全局忽略规则",
+    "edit": "编辑"
+  },
+  "addCli": {
+    "title": "添加 CLI",
+    "namePlaceholder": "CLI 名称（例如：Claude）",
+    "pathPlaceholder": "安装路径（例如：C:\\Users\\a\\.claude）",
+    "cancel": "取消",
+    "add": "添加"
+  },
+  "editIgnore": {
+    "title": "编辑忽略规则",
+    "placeholder": "每行一条规则（gitignore 语法）",
+    "cancel": "取消",
+    "save": "保存"
+  },
+  "project": {
+    "selectProject": "请从列表中选择一个项目",
+    "loading": "加载项目中...",
+    "notFound": "未找到项目",
+    "created": "创建时间：",
+    "cli": "CLI：",
+    "noClisLinked": "未关联 CLI",
+    "importing": "导入中...",
+    "importFromCli": "从 CLI 导入",
+    "applying": "应用中...",
+    "applyToCli": "应用到 CLI",
+    "backups": "备份",
+    "selectCliToBrowse": "选择一个 CLI 以浏览文件",
+    "largeFilesDetected": "检测到大文件：\n{{files}}\n\n是否继续？",
+    "applyConfirm": "此操作将：\n1. 创建当前 CLI 配置的备份\n2. 将您的更改应用到 CLI\n\n是否继续？",
+    "applySuccess": "更改已成功应用！",
+    "applyFailed": "应用失败：{{errors}}"
+  },
+  "backup": {
+    "title": "备份管理器",
+    "creating": "创建中...",
+    "createBackup": "创建备份",
+    "restoreTo": "恢复到：",
+    "allClis": "所有 CLI",
+    "loading": "加载中...",
+    "noBackups": "暂无备份",
+    "clis": "CLI：",
+    "restore": "恢复",
+    "delete": "删除",
+    "maxBackupsNote": "每个项目最多 5 个备份。最旧的备份将被自动删除。",
+    "partialSnapshotWarning": "部分快照只能恢复特定 CLI。请先选择一个 CLI。",
+    "restoreConfirm": "警告：恢复操作将忽略当前的忽略规则。\n\n这将覆盖您当前的 CLI 配置。是否继续？",
+    "restoreSuccess": "恢复成功！",
+    "restoreFailed": "恢复失败：{{errors}}",
+    "deleteConfirm": "删除此备份？"
+  },
+  "columnView": {
+    "deselectAll": "取消全选",
+    "selectAll": "全选",
+    "deleting": "删除中...",
+    "deleteWithCount": "删除 ({{count}})",
+    "delete": "删除",
+    "noFiles": "无文件可显示",
+    "importFirst": "请先导入文件",
+    "deleteMultipleConfirm": "删除 {{count}} 个项目：{{names}}？\n此操作无法撤销。",
+    "deleteSingleConfirm": "删除 \"{{name}}\"？此操作无法撤销。",
+    "deleteFailed": "删除失败",
+    "renameFailed": "重命名失败"
+  },
+  "fileOps": {
+    "importing": "导入中...",
+    "importWithCount": "导入 ({{count}})",
+    "backingUp": "备份中...",
+    "backup": "备份",
+    "restore": "恢复",
+    "applyToCli": "应用到 CLI"
+  },
+  "filePreview": {
+    "loading": "加载中...",
+    "noFileSelected": "未选择文件",
+    "modified": "已修改",
+    "readOnly": "只读 ({{size}}MB)",
+    "showSource": "显示源码",
+    "showPreview": "显示预览",
+    "edit": "编辑",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "close": "关闭",
+    "deleteConfirm": "删除 \"{{filename}}\"？",
+    "deleteFailed": "删除文件失败",
+    "discardChanges": "放弃更改？"
+  },
+  "dialog": {
+    "confirm": "确认",
+    "cancel": "取消",
+    "delete": "删除",
+    "save": "保存",
+    "close": "关闭"
+  }
+}

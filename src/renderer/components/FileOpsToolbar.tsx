@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { trpc } from '../trpc/client'
 import { useExplorerStore } from '../stores/explorerStore'
 import { Download, Save, Upload, RotateCcw } from 'lucide-react'
@@ -11,6 +12,7 @@ interface FileOpsToolbarProps {
 }
 
 export function FileOpsToolbar({ projectName, cliName, onRestoreRequest }: FileOpsToolbarProps) {
+  const { t } = useTranslation()
   const { selection } = useExplorerStore()
   const [importing, setImporting] = useState(false)
   const [backing, setBacking] = useState(false)
@@ -58,7 +60,7 @@ export function FileOpsToolbar({ projectName, cliName, onRestoreRequest }: FileO
           )}
         >
           <Download size={14} />
-          {importing ? 'Importing...' : `Import (${selectedPaths.length})`}
+          {importing ? t('fileOps.importing') : t('fileOps.importWithCount', { count: selectedPaths.length })}
         </button>
         <div className="w-px h-4 bg-app-border mx-1" />
         <button
@@ -67,7 +69,7 @@ export function FileOpsToolbar({ projectName, cliName, onRestoreRequest }: FileO
           className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium text-app-text-muted hover:text-app-text hover:bg-app-surface-hover transition-colors disabled:opacity-50"
         >
           <Save size={14} />
-          {backing ? 'Backing up...' : 'Backup'}
+          {backing ? t('fileOps.backingUp') : t('fileOps.backup')}
         </button>
       </div>
 
@@ -78,14 +80,14 @@ export function FileOpsToolbar({ projectName, cliName, onRestoreRequest }: FileO
         className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-yellow-600/10 text-yellow-400 hover:bg-yellow-600/20 border border-yellow-600/20 transition-colors"
       >
         <RotateCcw size={14} />
-        Restore
+        {t('fileOps.restore')}
       </button>
       <button
         onClick={handleApply}
         className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-success-surface text-success hover:bg-emerald-600/20 border border-emerald-600/20 transition-colors"
       >
         <Upload size={14} />
-        Apply to CLI
+        {t('fileOps.applyToCli')}
       </button>
     </div>
   )

@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useProjectStore } from '../stores/projectStore'
 import { useExplorerStore } from '../stores/explorerStore'
 import { trpc } from '../trpc/client'
 import { ColumnView } from '../components/ColumnView'
 import { FilePreviewModal } from '../components/FilePreview'
 import { BackupManager } from '../components/BackupManager'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ProjectMeta } from '@shared/types'
 import { Download, Upload, Archive } from 'lucide-react'
 
 export function ProjectDetailPage() {
+  const { t } = useTranslation()
   const { currentProjectName, setCurrentProject } = useProjectStore()
   const { selectedFile, clearSelection, setColumns, setSelectedFile } = useExplorerStore()
   const [selectedCli, setSelectedCli] = useState<string | null>(null)
@@ -18,6 +21,9 @@ export function ProjectDetailPage() {
   const [applying, setApplying] = useState(false)
   const [workingCopyPath, setWorkingCopyPath] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [showLargeFilesConfirm, setShowLargeFilesConfirm] = useState(false)
+  const [largeFilesMessage, setLargeFilesMessage] = useState('')
+  const [showApplyConfirm, setShowApplyConfirm] = useState(false)
 
   const projectQuery = trpc.projects.get.useQuery(
     { name: currentProjectName || '' },
@@ -65,7 +71,7 @@ export function ProjectDetailPage() {
   if (!currentProjectName) {
     return (
       <div className="flex-1 flex items-center justify-center text-app-text-muted bg-app-bg">
-        Select a project from the list
+        {t('project.selectProject')}
       </div>
     )
   }
@@ -73,7 +79,7 @@ export function ProjectDetailPage() {
   if (projectQuery.isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center text-app-text-muted bg-app-bg">
-        Loading project...
+        {t('project.loading')}
       </div>
     )
   }
@@ -81,7 +87,7 @@ export function ProjectDetailPage() {
   if (!projectMeta) {
     return (
       <div className="flex-1 flex items-center justify-center text-app-text-muted bg-app-bg">
-        Project not found
+        {t('project.notFound')}
       </div>
     )
   }
@@ -97,18 +103,27 @@ export function ProjectDetailPage() {
         cliName: selectedCli
       })
       if (result.largeFiles && result.largeFiles.length > 0) {
-        const proceed = confirm(
-          `Large files detected:\n${result.largeFiles.map(f => `${f.path} (${Math.round(f.size / 1024 / 1024)}MB)`).join('\n')}\n\nProceed anyway?`
-        )
-        if (proceed) {
-          await importMutation.mutateAsync({
-            projectName: projectMeta.projectName,
-            cliName: selectedCli,
-            skipLargeFileCheck: true
-          })
-        }
+        const filesText = result.largeFiles.map(f => `${f.path} (${Math.round(f.size / 1024 / 1024)}MB)`).join('\n')
+        setLargeFilesMessage(t('project.largeFilesDetected', { files: filesText }))
+        setShowLargeFilesConfirm(true)
+      } else {
+        workingCopyQuery.refetch()
+        setRefreshKey(k => k + 1)
       }
-      // Refresh working copy path and columns after import
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleLargeFilesConfirm = async () => {
+    setShowLargeFilesConfirm(false)
+    setImporting(true)
+    try {
+      await importMutation.mutateAsync({
+        projectName: projectMeta!.projectName,
+        cliName: selectedCli!,
+        skipLargeFileCheck: true
+      })
       workingCopyQuery.refetch()
       setRefreshKey(k => k + 1)
     } finally {
@@ -118,21 +133,21 @@ export function ProjectDetailPage() {
 
   const handleApply = async () => {
     if (!selectedCli) return
-    const confirmed = confirm(
-      'This will:\n1. Create a backup of current CLI config\n2. Apply your changes to the CLI\n\nProceed?'
-    )
-    if (!confirmed) return
+    setShowApplyConfirm(true)
+  }
 
+  const handleApplyConfirm = async () => {
+    setShowApplyConfirm(false)
     setApplying(true)
     try {
       const result = await applyMutation.mutateAsync({
-        projectName: projectMeta.projectName,
-        cliName: selectedCli
+        projectName: projectMeta!.projectName,
+        cliName: selectedCli!
       })
       if (result.success) {
-        alert('Changes applied successfully!')
+        alert(t('project.applySuccess'))
       } else {
-        alert(`Apply failed: ${result.errors?.join(', ')}`)
+        alert(t('project.applyFailed', { errors: result.errors?.join(', ') }))
       }
     } finally {
       setApplying(false)
@@ -146,7 +161,7 @@ export function ProjectDetailPage() {
         <div className="min-w-0">
           <h1 className="text-lg font-semibold text-app-text truncate">{projectMeta.projectName}</h1>
           <p className="text-xs text-app-text-muted">
-            Created: {new Date(projectMeta.createdTime).toLocaleDateString()}
+            {t('project.created')} {new Date(projectMeta.createdTime).toLocaleDateString()}
           </p>
         </div>
 
@@ -154,7 +169,7 @@ export function ProjectDetailPage() {
 
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-app-text-muted">CLI:</span>
+            <span className="text-sm text-app-text-muted">{t('project.cli')}</span>
             <select
               value={selectedCli || ''}
               onChange={(e) => {
@@ -163,7 +178,7 @@ export function ProjectDetailPage() {
               }}
               className="bg-app-bg border border-app-border rounded-md px-2 py-1.5 text-sm text-app-text focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              {linkedClis.length === 0 && <option value="">No CLIs linked</option>}
+              {linkedClis.length === 0 && <option value="">{t('project.noClisLinked')}</option>}
               {linkedClis.map((cli) => (
                 <option key={cli} value={cli}>{cli}</option>
               ))}
@@ -178,7 +193,7 @@ export function ProjectDetailPage() {
             className="flex items-center gap-2 px-3 py-1.5 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50"
           >
             <Download size={14} />
-            {importing ? 'Importing...' : 'Import from CLI'}
+            {importing ? t('project.importing') : t('project.importFromCli')}
           </button>
           <button
             onClick={handleApply}
@@ -186,14 +201,14 @@ export function ProjectDetailPage() {
             className="flex items-center gap-2 px-3 py-1.5 bg-success-surface text-success rounded-md text-sm font-medium hover:bg-emerald-600/20 border border-emerald-600/20 transition-colors disabled:opacity-50"
           >
             <Upload size={14} />
-            {applying ? 'Applying...' : 'Apply to CLI'}
+            {applying ? t('project.applying') : t('project.applyToCli')}
           </button>
           <button
             onClick={() => setShowBackups(true)}
             className="flex items-center gap-2 px-3 py-1.5 bg-app-surface-hover text-app-text rounded-md text-sm font-medium hover:bg-app-border transition-colors"
           >
             <Archive size={14} />
-            Backups
+            {t('project.backups')}
           </button>
         </div>
       </div>
@@ -211,7 +226,7 @@ export function ProjectDetailPage() {
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center text-app-text-muted">
-            Select a CLI to browse files
+            {t('project.selectCliToBrowse')}
           </div>
         )}
       </div>
@@ -236,6 +251,24 @@ export function ProjectDetailPage() {
           onClose={() => setShowBackups(false)}
         />
       )}
+
+      {/* Large Files Confirm Dialog */}
+      <ConfirmDialog
+        open={showLargeFilesConfirm}
+        onOpenChange={setShowLargeFilesConfirm}
+        title={t('dialog.confirm')}
+        description={largeFilesMessage}
+        onConfirm={handleLargeFilesConfirm}
+      />
+
+      {/* Apply Confirm Dialog */}
+      <ConfirmDialog
+        open={showApplyConfirm}
+        onOpenChange={setShowApplyConfirm}
+        title={t('dialog.confirm')}
+        description={t('project.applyConfirm')}
+        onConfirm={handleApplyConfirm}
+      />
     </div>
   )
 }

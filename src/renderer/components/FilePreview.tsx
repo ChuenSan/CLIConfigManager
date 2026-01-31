@@ -1,9 +1,11 @@
 import { useRef, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { trpc } from '../trpc/client'
 import { EDITOR_READONLY_THRESHOLD } from '@shared/constants'
 import { Edit3, Save, X, Trash2, Eye, Code } from 'lucide-react'
 import { clsx } from 'clsx'
 import * as Dialog from '@radix-ui/react-dialog'
+import { ConfirmDialog } from './ConfirmDialog'
 
 interface FilePreviewModalProps {
   filePath: string | null
@@ -14,6 +16,7 @@ interface FilePreviewModalProps {
 }
 
 export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }: FilePreviewModalProps) {
+  const { t } = useTranslation()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [content, setContent] = useState<string>('')
   const [originalContent, setOriginalContent] = useState<string>('')
@@ -23,6 +26,8 @@ export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }
   const [fileSize, setFileSize] = useState(0)
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
 
   const readFileQuery = trpc.fs.readFile.useQuery(
     { path: filePath || '' },
@@ -69,15 +74,18 @@ export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }
 
   const handleDelete = async () => {
     if (!filePath) return
-    const confirmed = confirm(`Delete "${filePath.split(/[\\/]/).pop()}"?`)
-    if (!confirmed) return
+    setShowDeleteConfirm(true)
+  }
 
+  const handleDeleteConfirm = async () => {
+    if (!filePath) return
     try {
       await deleteMutation.mutateAsync({ path: filePath })
       onDelete?.(filePath)
     } catch (e) {
-      alert('Failed to delete file')
+      alert(t('filePreview.deleteFailed'))
     }
+    setShowDeleteConfirm(false)
   }
 
   const handleCancel = () => {
@@ -87,8 +95,15 @@ export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }
 
   const handleClose = () => {
     if (isEditing && hasChanges) {
-      if (!confirm('Discard changes?')) return
+      setShowDiscardConfirm(true)
+      return
     }
+    setIsEditing(false)
+    onClose()
+  }
+
+  const handleDiscardConfirm = () => {
+    setShowDiscardConfirm(false)
     setIsEditing(false)
     onClose()
   }
@@ -108,6 +123,7 @@ export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }
   const fileName = filePath ? filePath.split(/[\\/]/).pop() || '' : ''
 
   return (
+    <>
     <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fade-in" />
@@ -116,17 +132,17 @@ export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 bg-app-surface border-b border-app-border select-none">
             <Dialog.Title className="text-base font-semibold truncate flex-1 text-app-text">
-              {fileName || 'Loading...'}
+              {fileName || t('filePreview.loading')}
             </Dialog.Title>
 
             {hasChanges && (
               <span className="text-xs px-1.5 py-0.5 bg-yellow-600/20 text-yellow-400 rounded">
-                Modified
+                {t('filePreview.modified')}
               </span>
             )}
             {isReadOnly && (
               <span className="text-xs px-1.5 py-0.5 bg-app-surface-hover text-app-text-muted rounded">
-                Read-only ({Math.round(fileSize / 1024 / 1024)}MB)
+                {t('filePreview.readOnly', { size: Math.round(fileSize / 1024 / 1024) })}
               </span>
             )}
 
@@ -137,7 +153,7 @@ export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }
                   'p-1.5 rounded-md transition-colors',
                   showPreview ? 'bg-primary text-white' : 'text-app-text-muted hover:bg-app-surface-hover hover:text-app-text'
                 )}
-                title={showPreview ? 'Show source' : 'Show preview'}
+                title={showPreview ? t('filePreview.showSource') : t('filePreview.showPreview')}
               >
                 {showPreview ? <Code size={14} /> : <Eye size={14} />}
               </button>
@@ -147,7 +163,7 @@ export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }
               <button
                 onClick={() => setIsEditing(true)}
                 className="p-1.5 rounded-md text-app-text-muted hover:bg-app-surface-hover hover:text-app-text transition-colors"
-                title="Edit"
+                title={t('filePreview.edit')}
               >
                 <Edit3 size={14} />
               </button>
@@ -159,14 +175,14 @@ export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }
                   onClick={handleSave}
                   disabled={saving || !hasChanges}
                   className="p-1.5 rounded-md bg-success text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
-                  title="Save"
+                  title={t('filePreview.save')}
                 >
                   <Save size={14} />
                 </button>
                 <button
                   onClick={handleCancel}
                   className="p-1.5 rounded-md text-app-text-muted hover:bg-app-surface-hover hover:text-app-text transition-colors"
-                  title="Cancel"
+                  title={t('filePreview.cancel')}
                 >
                   <X size={14} />
                 </button>
@@ -176,7 +192,7 @@ export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }
             <button
               onClick={handleDelete}
               className="p-1.5 rounded-md text-danger hover:bg-danger-surface transition-colors"
-              title="Delete"
+              title={t('filePreview.delete')}
             >
               <Trash2 size={14} />
             </button>
@@ -186,7 +202,7 @@ export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }
             <button
               onClick={handleClose}
               className="p-1.5 rounded-md text-app-text-muted hover:bg-app-surface-hover hover:text-app-text transition-colors"
-              title="Close"
+              title={t('filePreview.close')}
             >
               <X size={18} />
             </button>
@@ -196,11 +212,11 @@ export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }
           <div className="flex-1 overflow-auto">
             {readFileQuery.isLoading ? (
               <div className="flex items-center justify-center h-full text-app-text-muted">
-                Loading...
+                {t('filePreview.loading')}
               </div>
             ) : !filePath ? (
               <div className="flex items-center justify-center h-full text-app-text-muted">
-                No file selected
+                {t('filePreview.noFileSelected')}
               </div>
             ) : isEditing ? (
               <textarea
@@ -225,5 +241,24 @@ export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+
+    <ConfirmDialog
+      open={showDeleteConfirm}
+      onOpenChange={setShowDeleteConfirm}
+      title={t('dialog.confirm')}
+      description={t('filePreview.deleteConfirm', { filename: fileName })}
+      variant="danger"
+      confirmLabel={t('dialog.delete')}
+      onConfirm={handleDeleteConfirm}
+    />
+
+    <ConfirmDialog
+      open={showDiscardConfirm}
+      onOpenChange={setShowDiscardConfirm}
+      title={t('dialog.confirm')}
+      description={t('filePreview.discardChanges')}
+      onConfirm={handleDiscardConfirm}
+    />
+    </>
   )
 }

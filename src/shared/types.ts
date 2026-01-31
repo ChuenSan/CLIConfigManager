@@ -6,13 +6,17 @@ export const CliEntrySchema = z.object({
 })
 export type CliEntry = z.infer<typeof CliEntrySchema>
 
+// Language type
+export type Language = 'zh-CN' | 'en-US'
+
 // Settings schema
 export const SettingsSchema = z.object({
   cliRegistry: z.record(z.string(), CliEntrySchema),
   ignoreRules: z.object({
     global: z.array(z.string()),
     perCli: z.record(z.string(), z.array(z.string()))
-  })
+  }),
+  language: z.enum(['zh-CN', 'en-US']).default('zh-CN')
 })
 export type Settings = z.infer<typeof SettingsSchema>
 

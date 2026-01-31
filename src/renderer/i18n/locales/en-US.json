@@ -1,0 +1,133 @@
+{
+  "nav": {
+    "projects": "Projects",
+    "settings": "Settings",
+    "configManager": "Config Manager"
+  },
+  "home": {
+    "title": "Projects",
+    "newProject": "New Project",
+    "configureCliFirst": "Please configure CLI paths in Settings before creating a project.",
+    "noProjects": "No projects yet.",
+    "open": "Open",
+    "edit": "Edit",
+    "delete": "Delete"
+  },
+  "createProject": {
+    "title": "Create Project",
+    "namePlaceholder": "Project name",
+    "selectClis": "Select CLIs:",
+    "cancel": "Cancel",
+    "create": "Create"
+  },
+  "editCli": {
+    "title": "Edit CLIs - {{projectName}}",
+    "loading": "Loading...",
+    "noClisRegistered": "No CLIs registered. Add CLIs in Settings first.",
+    "done": "Done",
+    "unlinkConfirm": "This will permanently delete the CLI configuration copy in this project, but will not affect the system installation directory or historical backups.\n\nAre you sure you want to remove it?"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "cliRegistry": "CLI Registry",
+    "addCli": "Add CLI",
+    "noClisRegistered": "No CLIs registered.",
+    "remove": "Remove",
+    "globalIgnoreRules": "Global Ignore Rules",
+    "edit": "Edit"
+  },
+  "addCli": {
+    "title": "Add CLI",
+    "namePlaceholder": "CLI name (e.g., Claude)",
+    "pathPlaceholder": "Install path (e.g., C:\\Users\\a\\.claude)",
+    "cancel": "Cancel",
+    "add": "Add"
+  },
+  "editIgnore": {
+    "title": "Edit Ignore Rules",
+    "placeholder": "One rule per line (gitignore syntax)",
+    "cancel": "Cancel",
+    "save": "Save"
+  },
+  "project": {
+    "selectProject": "Select a project from the list",
+    "loading": "Loading project...",
+    "notFound": "Project not found",
+    "created": "Created:",
+    "cli": "CLI:",
+    "noClisLinked": "No CLIs linked",
+    "importing": "Importing...",
+    "importFromCli": "Import from CLI",
+    "applying": "Applying...",
+    "applyToCli": "Apply to CLI",
+    "backups": "Backups",
+    "selectCliToBrowse": "Select a CLI to browse files",
+    "largeFilesDetected": "Large files detected:\n{{files}}\n\nProceed anyway?",
+    "applyConfirm": "This will:\n1. Create a backup of current CLI config\n2. Apply your changes to the CLI\n\nProceed?",
+    "applySuccess": "Changes applied successfully!",
+    "applyFailed": "Apply failed: {{errors}}"
+  },
+  "backup": {
+    "title": "Backup Manager",
+    "creating": "Creating...",
+    "createBackup": "Create Backup",
+    "restoreTo": "Restore to:",
+    "allClis": "All CLIs",
+    "loading": "Loading...",
+    "noBackups": "No backups yet",
+    "clis": "CLIs:",
+    "restore": "Restore",
+    "delete": "Delete",
+    "maxBackupsNote": "Max 5 backups per project. Oldest backups are auto-deleted.",
+    "partialSnapshotWarning": "Partial snapshots can only restore specific CLIs. Please select a CLI first.",
+    "restoreConfirm": "WARNING: Restore will ignore current Ignore Rules.\n\nThis will overwrite your current CLI configuration. Continue?",
+    "restoreSuccess": "Restore completed successfully!",
+    "restoreFailed": "Restore failed: {{errors}}",
+    "deleteConfirm": "Delete this backup?"
+  },
+  "columnView": {
+    "deselectAll": "Deselect All",
+    "selectAll": "Select All",
+    "deleting": "Deleting...",
+    "deleteWithCount": "Delete ({{count}})",
+    "delete": "Delete",
+    "noFiles": "No files to display",
+    "importFirst": "Import files first",
+    "deleteMultipleConfirm": "Delete {{count}} item(s): {{names}}?\nThis action cannot be undone.",
+    "deleteSingleConfirm": "Delete \"{{name}}\"? This action cannot be undone.",
+    "deleteFailed": "Failed to delete",
+    "renameFailed": "Failed to rename"
+  },
+  "fileOps": {
+    "importing": "Importing...",
+    "importWithCount": "Import ({{count}})",
+    "backingUp": "Backing up...",
+    "backup": "Backup",
+    "restore": "Restore",
+    "applyToCli": "Apply to CLI"
+  },
+  "filePreview": {
+    "loading": "Loading...",
+    "noFileSelected": "No file selected",
+    "modified": "Modified",
+    "readOnly": "Read-only ({{size}}MB)",
+    "showSource": "Show source",
+    "showPreview": "Show preview",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "close": "Close",
+    "deleteConfirm": "Delete \"{{filename}}\"?",
+    "deleteFailed": "Failed to delete file",
+    "discardChanges": "Discard changes?"
+  },
+  "dialog": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "save": "Save",
+    "close": "Close"
+  }
+}

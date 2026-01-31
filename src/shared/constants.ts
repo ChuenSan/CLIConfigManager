@@ -9,5 +9,6 @@ export const DEFAULT_SETTINGS = {
   ignoreRules: {
     global: ['**/*.log', '**/.DS_Store', '**/Thumbs.db', '**/tmp/'],
     perCli: {}
-  }
+  },
+  language: 'zh-CN' as const
 }

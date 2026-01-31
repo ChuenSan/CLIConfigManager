@@ -1,7 +1,7 @@
 import fs from 'fs/promises'
 import { SETTINGS_FILE } from '../paths'
 import { DEFAULT_SETTINGS } from '@shared/constants'
-import { Settings, SettingsSchema } from '@shared/types'
+import { Settings, SettingsSchema, Language } from '@shared/types'
 
 export class SettingsService {
   private static cache: Settings | null = null
@@ -73,6 +73,13 @@ export class SettingsService {
       settings.ignoreRules.perCli = { ...settings.ignoreRules.perCli, ...update.perCli }
     }
 
+    await this.write(settings)
+    return { success: true }
+  }
+
+  static async updateLanguage(language: Language): Promise<{ success: boolean }> {
+    const settings = await this.read()
+    settings.language = language
     await this.write(settings)
     return { success: true }
   }

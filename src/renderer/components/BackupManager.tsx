@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { trpc } from '../trpc/client'
 import { SnapshotMeta } from '@shared/types'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { clsx } from 'clsx'
+import { ConfirmDialog } from './ConfirmDialog'
 
 interface BackupManagerProps {
   projectName: string
@@ -12,8 +14,11 @@ interface BackupManagerProps {
 }
 
 export function BackupManager({ projectName, linkedClis, onClose }: BackupManagerProps) {
+  const { t } = useTranslation()
   const [selectedCli, setSelectedCli] = useState<string | null>(null)
   const [restoring, setRestoring] = useState(false)
+  const [restoreTarget, setRestoreTarget] = useState<SnapshotMeta | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   const snapshotsQuery = trpc.fileOps.listSnapshots.useQuery({ projectName })
   const backupMutation = trpc.fileOps.backup.useMutation({
@@ -34,35 +39,42 @@ export function BackupManager({ projectName, linkedClis, onClose }: BackupManage
     })
   }
 
-  const handleRestore = async (snapshot: SnapshotMeta) => {
+  const handleRestoreClick = (snapshot: SnapshotMeta) => {
     if (snapshot.snapshotType === 'partial' && !selectedCli) {
-      alert('Partial snapshots can only restore specific CLIs. Please select a CLI first.')
+      alert(t('backup.partialSnapshotWarning'))
       return
     }
+    setRestoreTarget(snapshot)
+  }
 
-    const warning = 'WARNING: Restore will ignore current Ignore Rules.\n\nThis will overwrite your current CLI configuration. Continue?'
-    if (!confirm(warning)) return
-
+  const handleRestoreConfirm = async () => {
+    if (!restoreTarget) return
     setRestoring(true)
     try {
       const result = await restoreMutation.mutateAsync({
         projectName,
-        timestamp: snapshot.timestamp,
+        timestamp: restoreTarget.timestamp,
         cliName: selectedCli || undefined
       })
       if (result.success) {
-        alert('Restore completed successfully!')
+        alert(t('backup.restoreSuccess'))
       } else {
-        alert(`Restore failed: ${result.errors?.join(', ')}`)
+        alert(t('backup.restoreFailed', { errors: result.errors?.join(', ') }))
       }
     } finally {
       setRestoring(false)
+      setRestoreTarget(null)
     }
   }
 
-  const handleDelete = async (timestamp: string) => {
-    if (!confirm('Delete this backup?')) return
-    await deleteMutation.mutateAsync({ projectName, timestamp })
+  const handleDeleteClick = (timestamp: string) => {
+    setDeleteTarget(timestamp)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    await deleteMutation.mutateAsync({ projectName, timestamp: deleteTarget })
+    setDeleteTarget(null)
   }
 
   const formatTimestamp = (ts: string) => {
@@ -76,13 +88,14 @@ export function BackupManager({ projectName, linkedClis, onClose }: BackupManage
   }
 
   return (
+    <>
     <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl w-[600px] max-h-[80vh] flex flex-col border border-app-border shadow-2xl animate-slide-in">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
-            <Dialog.Title className="text-lg font-semibold text-app-text">Backup Manager</Dialog.Title>
+            <Dialog.Title className="text-lg font-semibold text-app-text">{t('backup.title')}</Dialog.Title>
             <Dialog.Close asChild>
               <button className="text-app-text-muted hover:text-app-text transition-colors">
                 <X size={18} />
@@ -98,18 +111,18 @@ export function BackupManager({ projectName, linkedClis, onClose }: BackupManage
               className="flex items-center gap-2 px-3 py-1.5 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50"
             >
               <Plus size={14} />
-              {backupMutation.isLoading ? 'Creating...' : 'Create Backup'}
+              {backupMutation.isLoading ? t('backup.creating') : t('backup.createBackup')}
             </button>
 
             <div className="flex-1" />
 
-            <span className="text-sm text-app-text-muted">Restore to:</span>
+            <span className="text-sm text-app-text-muted">{t('backup.restoreTo')}</span>
             <select
               value={selectedCli || ''}
               onChange={(e) => setSelectedCli(e.target.value || null)}
               className="bg-app-bg border border-app-border rounded-md px-2 py-1.5 text-sm text-app-text focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <option value="">All CLIs</option>
+              <option value="">{t('backup.allClis')}</option>
               {linkedClis.map((cli) => (
                 <option key={cli} value={cli}>{cli}</option>
               ))}
@@ -119,9 +132,9 @@ export function BackupManager({ projectName, linkedClis, onClose }: BackupManage
           {/* Snapshot List */}
           <div className="flex-1 overflow-y-auto p-4">
             {snapshotsQuery.isLoading ? (
-              <p className="text-app-text-muted text-center">Loading...</p>
+              <p className="text-app-text-muted text-center">{t('backup.loading')}</p>
             ) : snapshots.length === 0 ? (
-              <p className="text-app-text-muted text-center">No backups yet</p>
+              <p className="text-app-text-muted text-center">{t('backup.noBackups')}</p>
             ) : (
               <div className="space-y-2">
                 {snapshots.map((snapshot) => (
@@ -145,7 +158,7 @@ export function BackupManager({ projectName, linkedClis, onClose }: BackupManage
                         </span>
                       </div>
                       <div className="text-sm text-app-text-muted mt-1">
-                        CLIs: {snapshot.includedCLIs.join(', ')}
+                        {t('backup.clis')} {snapshot.includedCLIs.join(', ')}
                       </div>
                       {snapshot.notes && (
                         <div className="text-sm text-app-text-muted mt-1">{snapshot.notes}</div>
@@ -153,20 +166,20 @@ export function BackupManager({ projectName, linkedClis, onClose }: BackupManage
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => handleRestore(snapshot)}
+                        onClick={() => handleRestoreClick(snapshot)}
                         disabled={restoring}
                         className="flex items-center gap-1 px-2 py-1 bg-yellow-600/10 text-yellow-400 rounded-md text-xs hover:bg-yellow-600/20 transition-colors disabled:opacity-50"
                       >
                         <RotateCcw size={12} />
-                        Restore
+                        {t('backup.restore')}
                       </button>
                       <button
-                        onClick={() => handleDelete(snapshot.timestamp)}
+                        onClick={() => handleDeleteClick(snapshot.timestamp)}
                         disabled={deleteMutation.isLoading}
                         className="flex items-center gap-1 px-2 py-1 bg-danger-surface text-danger rounded-md text-xs hover:bg-danger/20 transition-colors"
                       >
                         <Trash2 size={12} />
-                        Delete
+                        {t('backup.delete')}
                       </button>
                     </div>
                   </div>
@@ -177,10 +190,30 @@ export function BackupManager({ projectName, linkedClis, onClose }: BackupManage
 
           {/* Footer */}
           <div className="px-4 py-3 border-t border-app-border text-xs text-app-text-muted">
-            Max 5 backups per project. Oldest backups are auto-deleted.
+            {t('backup.maxBackupsNote')}
           </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+
+    <ConfirmDialog
+      open={!!restoreTarget}
+      onOpenChange={(open) => !open && setRestoreTarget(null)}
+      title={t('dialog.confirm')}
+      description={t('backup.restoreConfirm')}
+      variant="danger"
+      onConfirm={handleRestoreConfirm}
+    />
+
+    <ConfirmDialog
+      open={!!deleteTarget}
+      onOpenChange={(open) => !open && setDeleteTarget(null)}
+      title={t('dialog.confirm')}
+      description={t('backup.deleteConfirm')}
+      variant="danger"
+      confirmLabel={t('dialog.delete')}
+      onConfirm={handleDeleteConfirm}
+    />
+    </>
   )
 }

@@ -34,6 +34,14 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         return SettingsService.updateIgnoreRules(input)
+      }),
+
+    updateLanguage: publicProcedure
+      .input(z.object({
+        language: z.enum(['zh-CN', 'en-US'])
+      }))
+      .mutation(async ({ input }) => {
+        return SettingsService.updateLanguage(input.language)
       })
   }),
 

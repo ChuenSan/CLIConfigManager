@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { trpc, TRPCProvider } from './trpc/client'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSettingsStore } from './stores/settingsStore'
 import { useProjectStore } from './stores/projectStore'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
+import { ConfirmDialog } from './components/ConfirmDialog'
 import { FolderOpen, Settings, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { clsx } from 'clsx'
+import i18n from './i18n'
 
 type Page = 'home' | 'settings' | 'project'
 
@@ -20,93 +23,110 @@ interface EditCliDialogProps {
 }
 
 function EditCliDialog({ projectName, open, onOpenChange, cliNames, onLink, onUnlink }: EditCliDialogProps) {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const projectQuery = trpc.projects.get.useQuery(
     { name: projectName! },
     { enabled: !!projectName && open }
   )
+  const [confirmUnlink, setConfirmUnlink] = useState<string | null>(null)
 
   const linkedClis = projectQuery.data ? Object.keys(projectQuery.data.linkedCLIs) : []
 
   const handleToggle = async (cliName: string, isLinked: boolean) => {
     if (isLinked) {
-      const confirmed = confirm(
-        '此操作将永久删除项目内的该 CLI 配置副本，但不会影响系统安装目录和历史备份。\n\n确定要移除吗？'
-      )
-      if (confirmed) {
-        onUnlink(cliName)
-        setTimeout(() => queryClient.invalidateQueries(), 100)
-      }
+      setConfirmUnlink(cliName)
     } else {
       onLink(cliName)
       setTimeout(() => queryClient.invalidateQueries(), 100)
     }
   }
 
+  const handleConfirmUnlink = () => {
+    if (confirmUnlink) {
+      onUnlink(confirmUnlink)
+      setTimeout(() => queryClient.invalidateQueries(), 100)
+      setConfirmUnlink(null)
+    }
+  }
+
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-96 border border-app-border shadow-2xl animate-slide-in">
-          <Dialog.Title className="text-lg font-semibold text-app-text mb-4">
-            Edit CLIs - {projectName}
-          </Dialog.Title>
+    <>
+      <Dialog.Root open={open} onOpenChange={onOpenChange}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-96 border border-app-border shadow-2xl animate-slide-in">
+            <Dialog.Title className="text-lg font-semibold text-app-text mb-4">
+              {t('editCli.title', { projectName })}
+            </Dialog.Title>
 
-          {projectQuery.isLoading ? (
-            <p className="text-app-text-muted">Loading...</p>
-          ) : cliNames.length === 0 ? (
-            <p className="text-app-text-muted">No CLIs registered. Add CLIs in Settings first.</p>
-          ) : (
-            <div className="space-y-2 mb-4">
-              {cliNames.map((cli) => {
-                const isLinked = linkedClis.some(l => l.toLowerCase() === cli.toLowerCase())
-                return (
-                  <label key={cli} className="flex items-center gap-3 p-2 rounded-md hover:bg-app-surface-hover cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isLinked}
-                      onChange={() => handleToggle(cli, isLinked)}
-                      className="w-4 h-4 accent-primary rounded"
-                    />
-                    <span className={clsx('text-sm', isLinked ? 'text-app-text' : 'text-app-text-muted')}>
-                      {cli}
-                    </span>
-                  </label>
-                )
-              })}
+            {projectQuery.isLoading ? (
+              <p className="text-app-text-muted">{t('editCli.loading')}</p>
+            ) : cliNames.length === 0 ? (
+              <p className="text-app-text-muted">{t('editCli.noClisRegistered')}</p>
+            ) : (
+              <div className="space-y-2 mb-4">
+                {cliNames.map((cli) => {
+                  const isLinked = linkedClis.some(l => l.toLowerCase() === cli.toLowerCase())
+                  return (
+                    <label key={cli} className="flex items-center gap-3 p-2 rounded-md hover:bg-app-surface-hover cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isLinked}
+                        onChange={() => handleToggle(cli, isLinked)}
+                        className="w-4 h-4 accent-primary rounded"
+                      />
+                      <span className={clsx('text-sm', isLinked ? 'text-app-text' : 'text-app-text-muted')}>
+                        {cli}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Dialog.Close asChild>
+                <button className="px-4 py-2 bg-primary text-white rounded-md text-sm hover:bg-primary-hover transition-colors">
+                  {t('editCli.done')}
+                </button>
+              </Dialog.Close>
             </div>
-          )}
 
-          <div className="flex justify-end">
             <Dialog.Close asChild>
-              <button className="px-4 py-2 bg-primary text-white rounded-md text-sm hover:bg-primary-hover transition-colors">
-                Done
+              <button className="absolute top-4 right-4 text-app-text-muted hover:text-app-text transition-colors">
+                <X size={18} />
               </button>
             </Dialog.Close>
-          </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
-          <Dialog.Close asChild>
-            <button className="absolute top-4 right-4 text-app-text-muted hover:text-app-text transition-colors">
-              <X size={18} />
-            </button>
-          </Dialog.Close>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+      <ConfirmDialog
+        open={!!confirmUnlink}
+        onOpenChange={(open) => !open && setConfirmUnlink(null)}
+        title={t('dialog.confirm')}
+        description={t('editCli.unlinkConfirm')}
+        variant="danger"
+        confirmLabel={t('dialog.delete')}
+        onConfirm={handleConfirmUnlink}
+      />
+    </>
   )
 }
 
 function Sidebar({ currentPage, onNavigate }: { currentPage: Page; onNavigate: (page: Page) => void }) {
+  const { t } = useTranslation()
   const navItems = [
-    { id: 'home' as const, label: 'Projects', icon: FolderOpen },
-    { id: 'settings' as const, label: 'Settings', icon: Settings }
+    { id: 'home' as const, labelKey: 'nav.projects', icon: FolderOpen },
+    { id: 'settings' as const, labelKey: 'nav.settings', icon: Settings }
   ]
 
   return (
     <nav className="w-52 bg-app-surface border-r border-app-border flex flex-col">
       <div className="px-4 py-4">
         <h2 className="text-xs font-semibold text-app-text-muted uppercase tracking-wider">
-          Config Manager
+          {t('nav.configManager')}
         </h2>
       </div>
       <div className="flex-1 px-2 space-y-1">
@@ -125,7 +145,7 @@ function Sidebar({ currentPage, onNavigate }: { currentPage: Page; onNavigate: (
               )}
             >
               <Icon size={18} />
-              {item.label}
+              {t(item.labelKey)}
             </button>
           )
         })}
@@ -135,6 +155,7 @@ function Sidebar({ currentPage, onNavigate }: { currentPage: Page; onNavigate: (
 }
 
 function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
+  const { t } = useTranslation()
   const { projects, setProjects, setCurrentProjectName } = useProjectStore()
   const { settings } = useSettingsStore()
   const [newProjectName, setNewProjectName] = useState('')
@@ -174,24 +195,24 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   return (
     <div className="flex-1 p-6 bg-app-bg">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-xl font-semibold text-app-text">Projects</h1>
+        <h1 className="text-xl font-semibold text-app-text">{t('home.title')}</h1>
         <button
           onClick={() => setShowCreateDialog(true)}
           disabled={!canCreate}
           className="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          New Project
+          {t('home.newProject')}
         </button>
       </div>
 
       {!canCreate && (
         <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-4 mb-4 text-sm">
-          Please configure CLI paths in Settings before creating a project.
+          {t('home.configureCliFirst')}
         </div>
       )}
 
       {projects.length === 0 ? (
-        <p className="text-app-text-muted">No projects yet.</p>
+        <p className="text-app-text-muted">{t('home.noProjects')}</p>
       ) : (
         <div className="grid gap-3">
           {projects.map((name) => (
@@ -205,7 +226,7 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
                   }}
                   className="px-3 py-1.5 bg-app-surface-hover text-app-text rounded-md text-sm hover:bg-app-border transition-colors"
                 >
-                  Open
+                  {t('home.open')}
                 </button>
                 <button
                   onClick={() => {
@@ -214,13 +235,13 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
                   }}
                   className="px-3 py-1.5 bg-app-surface-hover text-app-text rounded-md text-sm hover:bg-app-border transition-colors"
                 >
-                  Edit
+                  {t('home.edit')}
                 </button>
                 <button
                   onClick={() => deleteMutation.mutate({ name })}
                   className="px-3 py-1.5 bg-danger-surface text-danger rounded-md text-sm hover:bg-danger/20 transition-colors"
                 >
-                  Delete
+                  {t('home.delete')}
                 </button>
               </div>
             </div>
@@ -232,16 +253,16 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
           <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-96 border border-app-border shadow-2xl animate-slide-in">
-            <Dialog.Title className="text-lg font-semibold text-app-text mb-4">Create Project</Dialog.Title>
+            <Dialog.Title className="text-lg font-semibold text-app-text mb-4">{t('createProject.title')}</Dialog.Title>
             <input
               type="text"
-              placeholder="Project name"
+              placeholder={t('createProject.namePlaceholder')}
               value={newProjectName}
               onChange={(e) => setNewProjectName(e.target.value)}
               className="w-full px-3 py-2 bg-app-bg border border-app-border rounded-md text-app-text placeholder:text-app-text-muted mb-4 focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <div className="mb-4">
-              <p className="text-sm text-app-text-muted mb-2">Select CLIs:</p>
+              <p className="text-sm text-app-text-muted mb-2">{t('createProject.selectClis')}</p>
               {cliNames.map((cli) => (
                 <label key={cli} className="flex items-center gap-2 mb-2 text-sm text-app-text cursor-pointer">
                   <input
@@ -263,7 +284,7 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
             <div className="flex justify-end gap-2">
               <Dialog.Close asChild>
                 <button className="px-4 py-2 bg-app-surface-hover text-app-text rounded-md text-sm hover:bg-app-border transition-colors">
-                  Cancel
+                  {t('createProject.cancel')}
                 </button>
               </Dialog.Close>
               <button
@@ -271,7 +292,7 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
                 disabled={!newProjectName.trim() || selectedClis.length === 0}
                 className="px-4 py-2 bg-primary text-white rounded-md text-sm hover:bg-primary-hover transition-colors disabled:opacity-50"
               >
-                Create
+                {t('createProject.create')}
               </button>
             </div>
             <Dialog.Close asChild>
@@ -297,6 +318,7 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
 }
 
 function SettingsPage() {
+  const { t } = useTranslation()
   const { settings, setSettings } = useSettingsStore()
   const [newCliName, setNewCliName] = useState('')
   const [newCliPath, setNewCliPath] = useState('')
@@ -330,25 +352,48 @@ function SettingsPage() {
     }
   })
 
-  if (!settings) return <div className="flex-1 p-6 bg-app-bg text-app-text-muted">Loading...</div>
+  const updateLanguageMutation = trpc.settings.updateLanguage.useMutation({
+    onSuccess: () => settingsQuery.refetch()
+  })
+
+  const handleLanguageChange = (lang: 'zh-CN' | 'en-US') => {
+    i18n.changeLanguage(lang)
+    updateLanguageMutation.mutate({ language: lang })
+  }
+
+  if (!settings) return <div className="flex-1 p-6 bg-app-bg text-app-text-muted">{t('editCli.loading')}</div>
 
   return (
     <div className="flex-1 p-6 overflow-auto bg-app-bg">
-      <h1 className="text-xl font-semibold text-app-text mb-6">Settings</h1>
+      <h1 className="text-xl font-semibold text-app-text mb-6">{t('settings.title')}</h1>
 
       <section className="mb-8">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-base font-semibold text-app-text">CLI Registry</h2>
+          <h2 className="text-base font-semibold text-app-text">{t('settings.language')}</h2>
+        </div>
+        <select
+          value={settings.language || 'zh-CN'}
+          onChange={(e) => handleLanguageChange(e.target.value as 'zh-CN' | 'en-US')}
+          className="px-3 py-2 bg-app-surface border border-app-border rounded-md text-app-text focus:outline-none focus:ring-2 focus:ring-primary"
+        >
+          <option value="zh-CN">中文</option>
+          <option value="en-US">English</option>
+        </select>
+      </section>
+
+      <section className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-base font-semibold text-app-text">{t('settings.cliRegistry')}</h2>
           <button
             onClick={() => setShowAddDialog(true)}
             className="px-3 py-1.5 bg-primary text-white rounded-md text-sm hover:bg-primary-hover transition-colors"
           >
-            Add CLI
+            {t('settings.addCli')}
           </button>
         </div>
 
         {Object.entries(settings.cliRegistry).length === 0 ? (
-          <p className="text-app-text-muted">No CLIs registered.</p>
+          <p className="text-app-text-muted">{t('settings.noClisRegistered')}</p>
         ) : (
           <div className="space-y-2">
             {Object.entries(settings.cliRegistry).map(([name, { installPath }]) => (
@@ -361,7 +406,7 @@ function SettingsPage() {
                   onClick={() => removeCliMutation.mutate({ name })}
                   className="text-danger hover:text-red-400 transition-colors text-sm"
                 >
-                  Remove
+                  {t('settings.remove')}
                 </button>
               </div>
             ))}
@@ -371,7 +416,7 @@ function SettingsPage() {
 
       <section>
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-base font-semibold text-app-text">Global Ignore Rules</h2>
+          <h2 className="text-base font-semibold text-app-text">{t('settings.globalIgnoreRules')}</h2>
           <button
             onClick={() => {
               setIgnoreText(settings.ignoreRules.global.join('\n'))
@@ -379,7 +424,7 @@ function SettingsPage() {
             }}
             className="px-3 py-1.5 bg-app-surface-hover text-app-text rounded-md text-sm hover:bg-app-border transition-colors"
           >
-            Edit
+            {t('settings.edit')}
           </button>
         </div>
         <div className="bg-app-surface rounded-lg p-3 font-mono text-sm border border-app-border">
@@ -393,17 +438,17 @@ function SettingsPage() {
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
           <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-96 border border-app-border shadow-2xl animate-slide-in">
-            <Dialog.Title className="text-lg font-semibold text-app-text mb-4">Add CLI</Dialog.Title>
+            <Dialog.Title className="text-lg font-semibold text-app-text mb-4">{t('addCli.title')}</Dialog.Title>
             <input
               type="text"
-              placeholder="CLI name (e.g., Claude)"
+              placeholder={t('addCli.namePlaceholder')}
               value={newCliName}
               onChange={(e) => setNewCliName(e.target.value)}
               className="w-full px-3 py-2 bg-app-bg border border-app-border rounded-md text-app-text placeholder:text-app-text-muted mb-3 focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <input
               type="text"
-              placeholder="Install path (e.g., C:\Users\a\.claude)"
+              placeholder={t('addCli.pathPlaceholder')}
               value={newCliPath}
               onChange={(e) => setNewCliPath(e.target.value)}
               className="w-full px-3 py-2 bg-app-bg border border-app-border rounded-md text-app-text placeholder:text-app-text-muted mb-4 focus:outline-none focus:ring-2 focus:ring-primary"
@@ -411,7 +456,7 @@ function SettingsPage() {
             <div className="flex justify-end gap-2">
               <Dialog.Close asChild>
                 <button className="px-4 py-2 bg-app-surface-hover text-app-text rounded-md text-sm hover:bg-app-border transition-colors">
-                  Cancel
+                  {t('addCli.cancel')}
                 </button>
               </Dialog.Close>
               <button
@@ -419,7 +464,7 @@ function SettingsPage() {
                 disabled={!newCliName.trim() || !newCliPath.trim()}
                 className="px-4 py-2 bg-primary text-white rounded-md text-sm hover:bg-primary-hover transition-colors disabled:opacity-50"
               >
-                Add
+                {t('addCli.add')}
               </button>
             </div>
             <Dialog.Close asChild>
@@ -435,17 +480,17 @@ function SettingsPage() {
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
           <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-[500px] border border-app-border shadow-2xl animate-slide-in">
-            <Dialog.Title className="text-lg font-semibold text-app-text mb-4">Edit Ignore Rules</Dialog.Title>
+            <Dialog.Title className="text-lg font-semibold text-app-text mb-4">{t('editIgnore.title')}</Dialog.Title>
             <textarea
               value={ignoreText}
               onChange={(e) => setIgnoreText(e.target.value)}
               className="w-full h-48 px-3 py-2 bg-app-bg border border-app-border rounded-md font-mono text-sm text-app-text placeholder:text-app-text-muted mb-4 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-              placeholder="One rule per line (gitignore syntax)"
+              placeholder={t('editIgnore.placeholder')}
             />
             <div className="flex justify-end gap-2">
               <Dialog.Close asChild>
                 <button className="px-4 py-2 bg-app-surface-hover text-app-text rounded-md text-sm hover:bg-app-border transition-colors">
-                  Cancel
+                  {t('editIgnore.cancel')}
                 </button>
               </Dialog.Close>
               <button
@@ -454,7 +499,7 @@ function SettingsPage() {
                 })}
                 className="px-4 py-2 bg-primary text-white rounded-md text-sm hover:bg-primary-hover transition-colors"
               >
-                Save
+                {t('editIgnore.save')}
               </button>
             </div>
             <Dialog.Close asChild>
@@ -471,10 +516,15 @@ function SettingsPage() {
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('home')
-  const { setSettings } = useSettingsStore()
+  const { settings, setSettings } = useSettingsStore()
 
   trpc.settings.get.useQuery(undefined, {
-    onSuccess: setSettings
+    onSuccess: (data) => {
+      setSettings(data)
+      if (data.language && data.language !== i18n.language) {
+        i18n.changeLanguage(data.language)
+      }
+    }
   })
 
   return (

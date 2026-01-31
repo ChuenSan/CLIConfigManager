@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { trpc } from '../trpc/client'
 import { useExplorerStore } from '../stores/explorerStore'
 import { FileNode } from '@shared/types'
 import { Folder, File, ChevronRight } from 'lucide-react'
 import { clsx } from 'clsx'
+import { ConfirmDialog } from './ConfirmDialog'
 
 interface ColumnProps {
   items: FileNode[]
@@ -119,6 +121,7 @@ function joinPath(base: string, ...parts: string[]): string {
 }
 
 export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }: ColumnViewProps) {
+  const { t } = useTranslation()
   const {
     pathStack,
     columns,
@@ -141,6 +144,7 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
   const [editingName, setEditingName] = useState<string | null>(null)
   const [editingColumnIndex, setEditingColumnIndex] = useState<number>(-1)
   const [editValue, setEditValue] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState<{ message: string; paths: string[] } | null>(null)
   const deleteMutation = trpc.fs.deleteFile.useMutation()
   const renameMutation = trpc.fs.rename.useMutation()
 
@@ -239,20 +243,10 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
 
     if (checkedPaths.length > 0) {
       const names = checkedPaths.map(p => p.split(/[\\/]/).pop()).join(', ')
-      const confirmed = confirm(`Delete ${checkedPaths.length} item(s): ${names}?\nThis action cannot be undone.`)
-      if (!confirmed) return
-
-      setDeleting(true)
-      try {
-        for (const path of checkedPaths) {
-          await deleteMutation.mutateAsync({ path })
-        }
-        clearSelection()
-        setSelectedFile(null)
-        onRefresh?.()
-      } finally {
-        setDeleting(false)
-      }
+      setDeleteConfirm({
+        message: t('columnView.deleteMultipleConfirm', { count: checkedPaths.length, names }),
+        paths: checkedPaths
+      })
       return
     }
 
@@ -270,25 +264,35 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
 
     if (!targetPath || !targetName) return
 
-    const confirmed = confirm(`Delete "${targetName}"? This action cannot be undone.`)
-    if (!confirmed) return
+    setDeleteConfirm({
+      message: t('columnView.deleteSingleConfirm', { name: targetName }),
+      paths: [targetPath]
+    })
+  }
 
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm) return
     setDeleting(true)
     try {
-      const result = await deleteMutation.mutateAsync({ path: targetPath })
-      if (result.success) {
-        if (selectedFile) {
-          setSelectedFile(null)
-        } else {
-          setPathStack(pathStack.slice(0, -1))
+      for (const path of deleteConfirm.paths) {
+        const result = await deleteMutation.mutateAsync({ path })
+        if (!result.success) {
+          alert(t('columnView.deleteFailed'))
+          break
         }
-        clearSelection()
-        onRefresh?.()
-      } else {
-        alert('Failed to delete')
       }
+      if (deleteConfirm.paths.length > 1) {
+        clearSelection()
+      } else if (selectedFile) {
+        setSelectedFile(null)
+      } else {
+        setPathStack(pathStack.slice(0, -1))
+      }
+      clearSelection()
+      onRefresh?.()
     } finally {
       setDeleting(false)
+      setDeleteConfirm(null)
     }
   }
 
@@ -350,7 +354,7 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
       }
       onRefresh?.()
     } else {
-      alert('error' in result ? result.error : 'Failed to rename')
+      alert('error' in result ? result.error : t('columnView.renameFailed'))
     }
     cancelRename()
   }
@@ -403,7 +407,7 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
             onClick={handleSelectAll}
             className="px-2 py-1 text-xs bg-app-surface-hover text-app-text hover:bg-app-border rounded-md transition-colors flex-shrink-0"
           >
-            {allChecked ? 'Deselect All' : 'Select All'}
+            {allChecked ? t('columnView.deselectAll') : t('columnView.selectAll')}
           </button>
         )}
         {canDelete && (
@@ -412,7 +416,7 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
             disabled={deleting}
             className="px-2 py-1 text-xs bg-danger text-white hover:bg-red-600 rounded-md transition-colors disabled:opacity-50 flex-shrink-0"
           >
-            {deleting ? 'Deleting...' : checkedCount > 0 ? `Delete (${checkedCount})` : 'Delete'}
+            {deleting ? t('columnView.deleting') : checkedCount > 0 ? t('columnView.deleteWithCount', { count: checkedCount }) : t('columnView.delete')}
           </button>
         )}
       </div>
@@ -421,7 +425,7 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
       <div ref={columnsContainerRef} className="flex-1 flex overflow-x-auto">
         {columns.length === 0 ? (
           <div className="flex items-center justify-center w-full text-app-text-muted">
-            {rootPath ? 'No files to display' : 'Import files first'}
+            {rootPath ? t('columnView.noFiles') : t('columnView.importFirst')}
           </div>
         ) : (
           columns.map((items, i) => {
@@ -452,6 +456,16 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
           })
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => !open && setDeleteConfirm(null)}
+        title={t('dialog.confirm')}
+        description={deleteConfirm?.message || ''}
+        variant="danger"
+        confirmLabel={t('dialog.delete')}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   )
 }
