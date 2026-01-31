@@ -223,6 +223,42 @@ export const appRouter = router({
         }
       }),
 
+    createFile: publicProcedure
+      .input(z.object({ path: z.string() }))
+      .mutation(async ({ input }) => {
+        const fs = await import('fs/promises')
+        try {
+          await fs.access(input.path)
+          return { success: false, error: 'File already exists' }
+        } catch {
+          // File doesn't exist, proceed
+        }
+        try {
+          await fs.writeFile(input.path, '', 'utf-8')
+          return { success: true }
+        } catch (error) {
+          return { success: false, error: 'Failed to create file' }
+        }
+      }),
+
+    createFolder: publicProcedure
+      .input(z.object({ path: z.string() }))
+      .mutation(async ({ input }) => {
+        const fs = await import('fs/promises')
+        try {
+          await fs.access(input.path)
+          return { success: false, error: 'Folder already exists' }
+        } catch {
+          // Folder doesn't exist, proceed
+        }
+        try {
+          await fs.mkdir(input.path)
+          return { success: true }
+        } catch (error) {
+          return { success: false, error: 'Failed to create folder' }
+        }
+      }),
+
     rename: publicProcedure
       .input(z.object({
         oldPath: z.string(),

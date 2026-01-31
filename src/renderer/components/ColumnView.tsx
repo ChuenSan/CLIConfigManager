@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { trpc } from '../trpc/client'
 import { useExplorerStore } from '../stores/explorerStore'
 import { FileNode } from '@shared/types'
-import { Folder, File, ChevronRight } from 'lucide-react'
+import { Folder, File, ChevronRight, FilePlus, FolderPlus } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ConfirmDialog } from './ConfirmDialog'
 
@@ -145,8 +145,12 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
   const [editingColumnIndex, setEditingColumnIndex] = useState<number>(-1)
   const [editValue, setEditValue] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<{ message: string; paths: string[] } | null>(null)
+  const [creatingType, setCreatingType] = useState<'file' | 'folder' | null>(null)
+  const [createName, setCreateName] = useState('')
   const deleteMutation = trpc.fs.deleteFile.useMutation()
   const renameMutation = trpc.fs.rename.useMutation()
+  const createFileMutation = trpc.fs.createFile.useMutation()
+  const createFolderMutation = trpc.fs.createFolder.useMutation()
 
   // Auto-scroll to show new column
   useEffect(() => {
@@ -163,6 +167,18 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
       return []
     }
   }, [utils])
+
+  // Refresh a single column by index
+  const refreshColumn = useCallback(async (columnIndex: number) => {
+    const dirPath = columnIndex === 0
+      ? rootPath
+      : joinPath(rootPath, ...pathStack.slice(0, columnIndex))
+    const items = await loadDirectory(dirPath)
+    const currentColumns = useExplorerStore.getState().columns
+    const newColumns = [...currentColumns]
+    newColumns[columnIndex] = items
+    setColumns(newColumns)
+  }, [rootPath, pathStack, loadDirectory, setColumns])
 
   // Load all columns based on pathStack
   const loadAllColumns = useCallback(async () => {
@@ -281,15 +297,25 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
           break
         }
       }
+
+      // Determine which column to refresh
+      let refreshColumnIndex = pathStack.length
+
       if (deleteConfirm.paths.length > 1) {
         clearSelection()
       } else if (selectedFile) {
         setSelectedFile(null)
       } else {
+        // Deleting current directory - go back one level
         setPathStack(pathStack.slice(0, -1))
+        refreshColumnIndex = pathStack.length - 1
       }
       clearSelection()
-      onRefresh?.()
+
+      // Partial refresh: only refresh the affected column
+      if (refreshColumnIndex >= 0) {
+        await refreshColumn(refreshColumnIndex)
+      }
     } finally {
       setDeleting(false)
       setDeleteConfirm(null)
@@ -352,7 +378,8 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
         const newPath = joinPath(basePath, editValue.trim())
         setSelectedFile(newPath)
       }
-      onRefresh?.()
+      // Partial refresh: only refresh the column where rename happened
+      await refreshColumn(editingColumnIndex)
     } else {
       alert('error' in result ? result.error : t('columnView.renameFailed'))
     }
@@ -381,6 +408,38 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [editingName, checkedCount, selection, columns])
 
+  // Create file/folder handlers
+  const startCreate = (type: 'file' | 'folder') => {
+    setCreatingType(type)
+    setCreateName('')
+  }
+
+  const cancelCreate = () => {
+    setCreatingType(null)
+    setCreateName('')
+  }
+
+  const confirmCreate = async () => {
+    if (!creatingType || !createName.trim()) {
+      cancelCreate()
+      return
+    }
+
+    const currentDir = joinPath(rootPath, ...pathStack)
+    const newPath = joinPath(currentDir, createName.trim())
+
+    const mutation = creatingType === 'file' ? createFileMutation : createFolderMutation
+    const result = await mutation.mutateAsync({ path: newPath })
+
+    if (result.success) {
+      // Partial refresh: only refresh the current column
+      await refreshColumn(pathStack.length)
+    } else {
+      alert('error' in result ? result.error : t('columnView.createFailed'))
+    }
+    cancelCreate()
+  }
+
   const breadcrumbs = [rootPath, ...pathStack]
 
   return (
@@ -403,6 +462,24 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
             )
           })}
         </div>
+        {rootPath && (
+          <>
+            <button
+              onClick={() => startCreate('file')}
+              className="p-1.5 text-app-text-muted hover:text-app-text hover:bg-app-surface-hover rounded-md transition-colors flex-shrink-0"
+              title={t('columnView.newFile')}
+            >
+              <FilePlus size={16} />
+            </button>
+            <button
+              onClick={() => startCreate('folder')}
+              className="p-1.5 text-app-text-muted hover:text-app-text hover:bg-app-surface-hover rounded-md transition-colors flex-shrink-0"
+              title={t('columnView.newFolder')}
+            >
+              <FolderPlus size={16} />
+            </button>
+          </>
+        )}
         {currentFolderPaths.length > 0 && (
           <button
             onClick={handleSelectAll}
@@ -467,6 +544,44 @@ export function ColumnView({ rootPath, refreshKey = 0, onFileSelect, onRefresh }
         confirmLabel={t('dialog.delete')}
         onConfirm={handleDeleteConfirm}
       />
+
+      {/* Create File/Folder Dialog */}
+      {creatingType && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
+          <div className="bg-app-surface rounded-xl p-6 w-80 border border-app-border shadow-2xl animate-slide-in">
+            <h3 className="text-lg font-semibold text-app-text mb-4">
+              {creatingType === 'file' ? t('columnView.newFile') : t('columnView.newFolder')}
+            </h3>
+            <input
+              type="text"
+              value={createName}
+              onChange={(e) => setCreateName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') confirmCreate()
+                if (e.key === 'Escape') cancelCreate()
+              }}
+              placeholder={creatingType === 'file' ? t('columnView.fileNamePlaceholder') : t('columnView.folderNamePlaceholder')}
+              className="w-full px-3 py-2 bg-app-bg border border-app-border rounded-md text-app-text placeholder:text-app-text-muted mb-4 focus:outline-none focus:ring-2 focus:ring-primary"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={cancelCreate}
+                className="px-4 py-2 bg-app-surface-hover text-app-text rounded-md text-sm hover:bg-app-border transition-colors"
+              >
+                {t('dialog.cancel')}
+              </button>
+              <button
+                onClick={confirmCreate}
+                disabled={!createName.trim()}
+                className="px-4 py-2 bg-primary text-white rounded-md text-sm hover:bg-primary-hover transition-colors disabled:opacity-50"
+              >
+                {t('dialog.create')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

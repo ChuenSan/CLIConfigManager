@@ -97,7 +97,12 @@
     "deleteMultipleConfirm": "删除 {{count}} 个项目：{{names}}？\n此操作无法撤销。",
     "deleteSingleConfirm": "删除 \"{{name}}\"？此操作无法撤销。",
     "deleteFailed": "删除失败",
-    "renameFailed": "重命名失败"
+    "renameFailed": "重命名失败",
+    "newFile": "新建文件",
+    "newFolder": "新建文件夹",
+    "fileNamePlaceholder": "文件名",
+    "folderNamePlaceholder": "文件夹名",
+    "createFailed": "创建失败"
   },
   "fileOps": {
     "importing": "导入中...",
@@ -128,6 +133,7 @@
     "cancel": "取消",
     "delete": "删除",
     "save": "保存",
-    "close": "关闭"
+    "close": "关闭",
+    "create": "创建"
   }
 }

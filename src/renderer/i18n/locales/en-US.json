@@ -97,7 +97,12 @@
     "deleteMultipleConfirm": "Delete {{count}} item(s): {{names}}?\nThis action cannot be undone.",
     "deleteSingleConfirm": "Delete \"{{name}}\"? This action cannot be undone.",
     "deleteFailed": "Failed to delete",
-    "renameFailed": "Failed to rename"
+    "renameFailed": "Failed to rename",
+    "newFile": "New File",
+    "newFolder": "New Folder",
+    "fileNamePlaceholder": "File name",
+    "folderNamePlaceholder": "Folder name",
+    "createFailed": "Failed to create"
   },
   "fileOps": {
     "importing": "Importing...",
@@ -128,6 +133,7 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "save": "Save",
-    "close": "Close"
+    "close": "Close",
+    "create": "Create"
   }
 }
