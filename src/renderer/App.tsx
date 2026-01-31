@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { trpc, TRPCProvider } from './trpc/client'
+import { useQueryClient } from '@tanstack/react-query'
 import { useSettingsStore } from './stores/settingsStore'
 import { useProjectStore } from './stores/projectStore'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
@@ -8,6 +9,92 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { clsx } from 'clsx'
 
 type Page = 'home' | 'settings' | 'project'
+
+interface EditCliDialogProps {
+  projectName: string | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  cliNames: string[]
+  onLink: (cliName: string) => void
+  onUnlink: (cliName: string) => void
+}
+
+function EditCliDialog({ projectName, open, onOpenChange, cliNames, onLink, onUnlink }: EditCliDialogProps) {
+  const queryClient = useQueryClient()
+  const projectQuery = trpc.projects.get.useQuery(
+    { name: projectName! },
+    { enabled: !!projectName && open }
+  )
+
+  const linkedClis = projectQuery.data ? Object.keys(projectQuery.data.linkedCLIs) : []
+
+  const handleToggle = async (cliName: string, isLinked: boolean) => {
+    if (isLinked) {
+      const confirmed = confirm(
+        '此操作将永久删除项目内的该 CLI 配置副本，但不会影响系统安装目录和历史备份。\n\n确定要移除吗？'
+      )
+      if (confirmed) {
+        onUnlink(cliName)
+        setTimeout(() => queryClient.invalidateQueries(), 100)
+      }
+    } else {
+      onLink(cliName)
+      setTimeout(() => queryClient.invalidateQueries(), 100)
+    }
+  }
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-96 border border-app-border shadow-2xl animate-slide-in">
+          <Dialog.Title className="text-lg font-semibold text-app-text mb-4">
+            Edit CLIs - {projectName}
+          </Dialog.Title>
+
+          {projectQuery.isLoading ? (
+            <p className="text-app-text-muted">Loading...</p>
+          ) : cliNames.length === 0 ? (
+            <p className="text-app-text-muted">No CLIs registered. Add CLIs in Settings first.</p>
+          ) : (
+            <div className="space-y-2 mb-4">
+              {cliNames.map((cli) => {
+                const isLinked = linkedClis.some(l => l.toLowerCase() === cli.toLowerCase())
+                return (
+                  <label key={cli} className="flex items-center gap-3 p-2 rounded-md hover:bg-app-surface-hover cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isLinked}
+                      onChange={() => handleToggle(cli, isLinked)}
+                      className="w-4 h-4 accent-primary rounded"
+                    />
+                    <span className={clsx('text-sm', isLinked ? 'text-app-text' : 'text-app-text-muted')}>
+                      {cli}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <Dialog.Close asChild>
+              <button className="px-4 py-2 bg-primary text-white rounded-md text-sm hover:bg-primary-hover transition-colors">
+                Done
+              </button>
+            </Dialog.Close>
+          </div>
+
+          <Dialog.Close asChild>
+            <button className="absolute top-4 right-4 text-app-text-muted hover:text-app-text transition-colors">
+              <X size={18} />
+            </button>
+          </Dialog.Close>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
 
 function Sidebar({ currentPage, onNavigate }: { currentPage: Page; onNavigate: (page: Page) => void }) {
   const navItems = [
@@ -53,6 +140,8 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const [newProjectName, setNewProjectName] = useState('')
   const [selectedClis, setSelectedClis] = useState<string[]>([])
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [editingProjectName, setEditingProjectName] = useState<string | null>(null)
 
   const projectsQuery = trpc.projects.list.useQuery(undefined, {
     onSuccess: setProjects
@@ -68,6 +157,14 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   })
 
   const deleteMutation = trpc.projects.delete.useMutation({
+    onSuccess: () => projectsQuery.refetch()
+  })
+
+  const linkCliMutation = trpc.projects.linkCli.useMutation({
+    onSuccess: () => projectsQuery.refetch()
+  })
+
+  const unlinkCliMutation = trpc.projects.unlinkCli.useMutation({
     onSuccess: () => projectsQuery.refetch()
   })
 
@@ -109,6 +206,15 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
                   className="px-3 py-1.5 bg-app-surface-hover text-app-text rounded-md text-sm hover:bg-app-border transition-colors"
                 >
                   Open
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingProjectName(name)
+                    setShowEditDialog(true)
+                  }}
+                  className="px-3 py-1.5 bg-app-surface-hover text-app-text rounded-md text-sm hover:bg-app-border transition-colors"
+                >
+                  Edit
                 </button>
                 <button
                   onClick={() => deleteMutation.mutate({ name })}
@@ -176,6 +282,16 @@ function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      {/* Edit CLI Dialog */}
+      <EditCliDialog
+        projectName={editingProjectName}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        cliNames={cliNames}
+        onLink={(cliName) => linkCliMutation.mutate({ projectName: editingProjectName!, cliName })}
+        onUnlink={(cliName) => unlinkCliMutation.mutate({ projectName: editingProjectName!, cliName })}
+      />
     </div>
   )
 }
