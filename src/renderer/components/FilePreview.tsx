@@ -3,20 +3,20 @@ import { trpc } from '../trpc/client'
 import { EDITOR_READONLY_THRESHOLD } from '@shared/constants'
 import { Edit3, Save, X, Trash2, Eye, Code } from 'lucide-react'
 import { clsx } from 'clsx'
+import * as Dialog from '@radix-ui/react-dialog'
 
-interface FilePreviewProps {
+interface FilePreviewModalProps {
   filePath: string | null
-  className?: string
+  isOpen: boolean
+  onClose: () => void
   onDelete?: (path: string) => void
   onSave?: () => void
 }
 
-export function FilePreview({ filePath, className = '', onDelete, onSave }: FilePreviewProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
+export function FilePreviewModal({ filePath, isOpen, onClose, onDelete, onSave }: FilePreviewModalProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [content, setContent] = useState<string>('')
   const [originalContent, setOriginalContent] = useState<string>('')
-  const [loading, setLoading] = useState(false)
   const [isMarkdown, setIsMarkdown] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [isReadOnly, setIsReadOnly] = useState(false)
@@ -24,12 +24,10 @@ export function FilePreview({ filePath, className = '', onDelete, onSave }: File
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  const utils = trpc.useUtils()
-
   const readFileQuery = trpc.fs.readFile.useQuery(
     { path: filePath || '' },
     {
-      enabled: !!filePath,
+      enabled: !!filePath && isOpen,
       onSuccess: (data) => {
         if (data.success && 'content' in data) {
           setContent(data.content)
@@ -46,13 +44,15 @@ export function FilePreview({ filePath, className = '', onDelete, onSave }: File
   const deleteMutation = trpc.fs.deleteFile.useMutation()
 
   useEffect(() => {
-    if (filePath) {
+    if (filePath && isOpen) {
       const ext = filePath.split('.').pop()?.toLowerCase() || ''
       setIsMarkdown(ext === 'md' || ext === 'markdown')
       setShowPreview(false)
       setIsEditing(false)
     }
-  }, [filePath])
+  }, [filePath, isOpen])
+
+  const hasChanges = content !== originalContent
 
   const handleSave = async () => {
     if (!filePath || isReadOnly) return
@@ -85,27 +85,12 @@ export function FilePreview({ filePath, className = '', onDelete, onSave }: File
     setIsEditing(false)
   }
 
-  const hasChanges = content !== originalContent
-
-  const getLanguage = (path: string): string => {
-    const ext = path.split('.').pop()?.toLowerCase() || ''
-    const langMap: Record<string, string> = {
-      ts: 'typescript',
-      tsx: 'typescript',
-      js: 'javascript',
-      jsx: 'javascript',
-      json: 'json',
-      md: 'markdown',
-      css: 'css',
-      html: 'html',
-      py: 'python',
-      yaml: 'yaml',
-      yml: 'yaml',
-      xml: 'xml',
-      sh: 'shell',
-      bash: 'shell'
+  const handleClose = () => {
+    if (isEditing && hasChanges) {
+      if (!confirm('Discard changes?')) return
     }
-    return langMap[ext] || 'plaintext'
+    setIsEditing(false)
+    onClose()
   }
 
   const renderMarkdown = (text: string): string => {
@@ -120,109 +105,125 @@ export function FilePreview({ filePath, className = '', onDelete, onSave }: File
       .replace(/\n/g, '<br/>')
   }
 
-  if (!filePath) {
-    return (
-      <div className={clsx('flex items-center justify-center bg-app-bg text-app-text-muted', className)}>
-        Select a file to preview
-      </div>
-    )
-  }
-
-  if (readFileQuery.isLoading) {
-    return (
-      <div className={clsx('flex items-center justify-center bg-app-bg text-app-text-muted', className)}>
-        Loading...
-      </div>
-    )
-  }
-
-  const fileName = filePath.split(/[\\/]/).pop() || ''
+  const fileName = filePath ? filePath.split(/[\\/]/).pop() || '' : ''
 
   return (
-    <div className={clsx('flex flex-col bg-app-bg', className)}>
-      {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-app-surface border-b border-app-border">
-        <span className="text-sm font-medium truncate flex-1 text-app-text">{fileName}</span>
-        {hasChanges && (
-          <span className="text-xs px-1.5 py-0.5 bg-yellow-600/20 text-yellow-400 rounded">
-            Modified
-          </span>
-        )}
-        {isReadOnly && (
-          <span className="text-xs px-1.5 py-0.5 bg-app-surface-hover text-app-text-muted rounded">
-            Read-only ({Math.round(fileSize / 1024 / 1024)}MB)
-          </span>
-        )}
-        {isMarkdown && !isEditing && (
-          <button
-            onClick={() => setShowPreview(!showPreview)}
-            className={clsx(
-              'p-1.5 rounded-md transition-colors',
-              showPreview ? 'bg-primary text-white' : 'text-app-text-muted hover:bg-app-surface-hover hover:text-app-text'
-            )}
-            title={showPreview ? 'Show source' : 'Show preview'}
-          >
-            {showPreview ? <Code size={14} /> : <Eye size={14} />}
-          </button>
-        )}
-        {!isReadOnly && !isEditing && (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="p-1.5 rounded-md text-app-text-muted hover:bg-app-surface-hover hover:text-app-text transition-colors"
-            title="Edit"
-          >
-            <Edit3 size={14} />
-          </button>
-        )}
-        {isEditing && (
-          <>
-            <button
-              onClick={handleSave}
-              disabled={saving || !hasChanges}
-              className="p-1.5 rounded-md bg-success text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
-              title="Save"
-            >
-              <Save size={14} />
-            </button>
-            <button
-              onClick={handleCancel}
-              className="p-1.5 rounded-md text-app-text-muted hover:bg-app-surface-hover hover:text-app-text transition-colors"
-              title="Cancel"
-            >
-              <X size={14} />
-            </button>
-          </>
-        )}
-        <button
-          onClick={handleDelete}
-          className="p-1.5 rounded-md text-danger hover:bg-danger-surface transition-colors"
-          title="Delete"
-        >
-          <Trash2 size={14} />
-        </button>
-      </div>
+    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fade-in" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-bg rounded-xl border border-app-border shadow-2xl z-50 w-[90vw] max-w-5xl h-[85vh] flex flex-col overflow-hidden animate-slide-in focus:outline-none">
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto">
-        {isEditing ? (
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="w-full h-full p-4 text-sm font-mono bg-app-bg text-app-text resize-none focus:outline-none"
-            spellCheck={false}
-          />
-        ) : isMarkdown && showPreview ? (
-          <div
-            className="p-4 prose prose-invert max-w-none text-app-text"
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-          />
-        ) : (
-          <pre className="p-4 text-sm font-mono whitespace-pre-wrap text-app-text-muted">
-            <code>{content}</code>
-          </pre>
-        )}
-      </div>
-    </div>
+          {/* Header */}
+          <div className="flex items-center gap-2 px-4 py-3 bg-app-surface border-b border-app-border select-none">
+            <Dialog.Title className="text-base font-semibold truncate flex-1 text-app-text">
+              {fileName || 'Loading...'}
+            </Dialog.Title>
+
+            {hasChanges && (
+              <span className="text-xs px-1.5 py-0.5 bg-yellow-600/20 text-yellow-400 rounded">
+                Modified
+              </span>
+            )}
+            {isReadOnly && (
+              <span className="text-xs px-1.5 py-0.5 bg-app-surface-hover text-app-text-muted rounded">
+                Read-only ({Math.round(fileSize / 1024 / 1024)}MB)
+              </span>
+            )}
+
+            {isMarkdown && !isEditing && (
+              <button
+                onClick={() => setShowPreview(!showPreview)}
+                className={clsx(
+                  'p-1.5 rounded-md transition-colors',
+                  showPreview ? 'bg-primary text-white' : 'text-app-text-muted hover:bg-app-surface-hover hover:text-app-text'
+                )}
+                title={showPreview ? 'Show source' : 'Show preview'}
+              >
+                {showPreview ? <Code size={14} /> : <Eye size={14} />}
+              </button>
+            )}
+
+            {!isReadOnly && !isEditing && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="p-1.5 rounded-md text-app-text-muted hover:bg-app-surface-hover hover:text-app-text transition-colors"
+                title="Edit"
+              >
+                <Edit3 size={14} />
+              </button>
+            )}
+
+            {isEditing && (
+              <>
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !hasChanges}
+                  className="p-1.5 rounded-md bg-success text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                  title="Save"
+                >
+                  <Save size={14} />
+                </button>
+                <button
+                  onClick={handleCancel}
+                  className="p-1.5 rounded-md text-app-text-muted hover:bg-app-surface-hover hover:text-app-text transition-colors"
+                  title="Cancel"
+                >
+                  <X size={14} />
+                </button>
+              </>
+            )}
+
+            <button
+              onClick={handleDelete}
+              className="p-1.5 rounded-md text-danger hover:bg-danger-surface transition-colors"
+              title="Delete"
+            >
+              <Trash2 size={14} />
+            </button>
+
+            <div className="w-px h-4 bg-app-border mx-1" />
+
+            <button
+              onClick={handleClose}
+              className="p-1.5 rounded-md text-app-text-muted hover:bg-app-surface-hover hover:text-app-text transition-colors"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-auto">
+            {readFileQuery.isLoading ? (
+              <div className="flex items-center justify-center h-full text-app-text-muted">
+                Loading...
+              </div>
+            ) : !filePath ? (
+              <div className="flex items-center justify-center h-full text-app-text-muted">
+                No file selected
+              </div>
+            ) : isEditing ? (
+              <textarea
+                ref={textareaRef}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="w-full h-full p-6 text-sm font-mono bg-app-bg text-app-text resize-none focus:outline-none"
+                spellCheck={false}
+                autoFocus
+              />
+            ) : isMarkdown && showPreview ? (
+              <div
+                className="p-6 prose prose-invert max-w-none text-app-text"
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+              />
+            ) : (
+              <pre className="p-6 text-sm font-mono whitespace-pre-wrap text-app-text-muted leading-relaxed">
+                <code>{content}</code>
+              </pre>
+            )}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   )
 }

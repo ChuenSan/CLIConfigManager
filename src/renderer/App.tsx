@@ -362,7 +362,7 @@ function AppContent() {
   })
 
   return (
-    <div className="min-h-screen bg-app-bg text-app-text flex">
+    <div className="h-screen w-full bg-app-bg text-app-text flex overflow-hidden">
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
       {currentPage === 'home' && <HomePage onNavigate={setCurrentPage} />}
       {currentPage === 'settings' && <SettingsPage />}

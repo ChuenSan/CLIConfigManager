@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useProjectStore } from '../stores/projectStore'
 import { useExplorerStore } from '../stores/explorerStore'
 import { trpc } from '../trpc/client'
 import { ColumnView } from '../components/ColumnView'
-import { FilePreview } from '../components/FilePreview'
+import { FilePreviewModal } from '../components/FilePreview'
 import { BackupManager } from '../components/BackupManager'
 import { ProjectMeta } from '@shared/types'
 import { Download, Upload, Archive } from 'lucide-react'
@@ -18,9 +18,6 @@ export function ProjectDetailPage() {
   const [applying, setApplying] = useState(false)
   const [workingCopyPath, setWorkingCopyPath] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
-  const [previewWidth, setPreviewWidth] = useState(50)
-  const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
 
   const projectQuery = trpc.projects.get.useQuery(
     { name: currentProjectName || '' },
@@ -142,120 +139,94 @@ export function ProjectDetailPage() {
     }
   }
 
-  const handleResizeStart = (e: React.MouseEvent) => {
-    e.preventDefault()
-    resizeRef.current = { startX: e.clientX, startWidth: previewWidth }
-    document.addEventListener('mousemove', handleResizeMove)
-    document.addEventListener('mouseup', handleResizeEnd)
-  }
-
-  const handleResizeMove = (e: MouseEvent) => {
-    if (!resizeRef.current || !containerRef.current) return
-    const containerWidth = containerRef.current.offsetWidth
-    const deltaX = resizeRef.current.startX - e.clientX
-    const deltaPercent = (deltaX / containerWidth) * 100
-    const newWidth = Math.min(80, Math.max(20, resizeRef.current.startWidth + deltaPercent))
-    setPreviewWidth(newWidth)
-  }
-
-  const handleResizeEnd = () => {
-    resizeRef.current = null
-    document.removeEventListener('mousemove', handleResizeMove)
-    document.removeEventListener('mouseup', handleResizeEnd)
-  }
-
   return (
     <div className="flex-1 flex flex-col h-full bg-app-bg">
-      {/* Header */}
-      <div className="px-4 py-3 bg-app-surface border-b border-app-border">
-        <h1 className="text-lg font-semibold text-app-text">{projectMeta.projectName}</h1>
-        <p className="text-sm text-app-text-muted">
-          Created: {new Date(projectMeta.createdTime).toLocaleDateString()}
-        </p>
-      </div>
-
-      {/* CLI Selector + Actions */}
-      <div className="flex items-center gap-3 px-4 py-2 bg-app-surface border-b border-app-border">
-        <span className="text-sm text-app-text-muted">CLI:</span>
-        <select
-          value={selectedCli || ''}
-          onChange={(e) => {
-            setSelectedCli(e.target.value || null)
-            clearSelection()
-          }}
-          className="bg-app-bg border border-app-border rounded-md px-2 py-1.5 text-sm text-app-text focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          {linkedClis.length === 0 && <option value="">No CLIs linked</option>}
-          {linkedClis.map((cli) => (
-            <option key={cli} value={cli}>{cli}</option>
-          ))}
-        </select>
+      {/* Header + Actions */}
+      <div className="flex items-center gap-4 px-4 py-2 bg-app-surface border-b border-app-border">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold text-app-text truncate">{projectMeta.projectName}</h1>
+          <p className="text-xs text-app-text-muted">
+            Created: {new Date(projectMeta.createdTime).toLocaleDateString()}
+          </p>
+        </div>
 
         <div className="flex-1" />
 
-        <button
-          onClick={handleImport}
-          disabled={!selectedCli || importing}
-          className="flex items-center gap-2 px-3 py-1.5 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50"
-        >
-          <Download size={14} />
-          {importing ? 'Importing...' : 'Import from CLI'}
-        </button>
-        <button
-          onClick={handleApply}
-          disabled={!selectedCli || applying}
-          className="flex items-center gap-2 px-3 py-1.5 bg-success-surface text-success rounded-md text-sm font-medium hover:bg-emerald-600/20 border border-emerald-600/20 transition-colors disabled:opacity-50"
-        >
-          <Upload size={14} />
-          {applying ? 'Applying...' : 'Apply to CLI'}
-        </button>
-        <button
-          onClick={() => setShowBackups(true)}
-          className="flex items-center gap-2 px-3 py-1.5 bg-app-surface-hover text-app-text rounded-md text-sm font-medium hover:bg-app-border transition-colors"
-        >
-          <Archive size={14} />
-          Backups
-        </button>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-app-text-muted">CLI:</span>
+            <select
+              value={selectedCli || ''}
+              onChange={(e) => {
+                setSelectedCli(e.target.value || null)
+                clearSelection()
+              }}
+              className="bg-app-bg border border-app-border rounded-md px-2 py-1.5 text-sm text-app-text focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              {linkedClis.length === 0 && <option value="">No CLIs linked</option>}
+              {linkedClis.map((cli) => (
+                <option key={cli} value={cli}>{cli}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="w-px h-6 bg-app-border" />
+
+          <button
+            onClick={handleImport}
+            disabled={!selectedCli || importing}
+            className="flex items-center gap-2 px-3 py-1.5 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50"
+          >
+            <Download size={14} />
+            {importing ? 'Importing...' : 'Import from CLI'}
+          </button>
+          <button
+            onClick={handleApply}
+            disabled={!selectedCli || applying}
+            className="flex items-center gap-2 px-3 py-1.5 bg-success-surface text-success rounded-md text-sm font-medium hover:bg-emerald-600/20 border border-emerald-600/20 transition-colors disabled:opacity-50"
+          >
+            <Upload size={14} />
+            {applying ? 'Applying...' : 'Apply to CLI'}
+          </button>
+          <button
+            onClick={() => setShowBackups(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-app-surface-hover text-app-text rounded-md text-sm font-medium hover:bg-app-border transition-colors"
+          >
+            <Archive size={14} />
+            Backups
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}
-      <div ref={containerRef} className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-w-0">
         {selectedCli ? (
-          <>
-            <div className="min-w-0 flex-1" style={selectedFile ? { width: `${100 - previewWidth}%`, flex: 'none' } : undefined}>
-              <ColumnView
-                rootPath={workingCopyPath || ''}
-                refreshKey={refreshKey}
-                onFileSelect={() => {}}
-                onRefresh={() => setRefreshKey(k => k + 1)}
-              />
-            </div>
-            {selectedFile && (
-              <>
-                <div
-                  className="w-1 cursor-col-resize bg-app-border hover:bg-primary flex-shrink-0 transition-colors"
-                  onMouseDown={handleResizeStart}
-                />
-                <div className="border-l border-app-border" style={{ width: `${previewWidth}%` }}>
-                  <FilePreview
-                    filePath={selectedFile}
-                    className="h-full"
-                    onDelete={() => {
-                      setSelectedFile(null)
-                      setRefreshKey(k => k + 1)
-                    }}
-                    onSave={() => {}}
-                  />
-                </div>
-              </>
-            )}
-          </>
+          <div className="min-w-0 flex-1">
+            <ColumnView
+              rootPath={workingCopyPath || ''}
+              refreshKey={refreshKey}
+              onFileSelect={() => {}}
+              onRefresh={() => setRefreshKey(k => k + 1)}
+            />
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center text-app-text-muted">
             Select a CLI to browse files
           </div>
         )}
       </div>
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        filePath={selectedFile}
+        isOpen={!!selectedFile}
+        onClose={() => setSelectedFile(null)}
+        onDelete={() => {
+          setSelectedFile(null)
+          setRefreshKey(k => k + 1)
+        }}
+        onSave={() => {}}
+      />
 
       {/* Backup Manager Modal */}
       {showBackups && (
