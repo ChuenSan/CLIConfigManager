@@ -213,6 +213,42 @@ export const appRouter = router({
         } catch (error) {
           return { success: false, error: 'Failed to delete' }
         }
+      }),
+
+    rename: publicProcedure
+      .input(z.object({
+        oldPath: z.string(),
+        newName: z.string()
+      }))
+      .mutation(async ({ input }) => {
+        const fs = await import('fs/promises')
+        const path = await import('path')
+
+        // Validate new name
+        if (!input.newName.trim()) {
+          return { success: false, error: 'Name cannot be empty' }
+        }
+        if (/[<>:"/\\|?*]/.test(input.newName) || input.newName.includes('..')) {
+          return { success: false, error: 'Invalid characters in name' }
+        }
+
+        const dir = path.dirname(input.oldPath)
+        const newPath = path.join(dir, input.newName)
+
+        // Check if target exists
+        try {
+          await fs.access(newPath)
+          return { success: false, error: 'A file with this name already exists' }
+        } catch {
+          // Target doesn't exist, proceed
+        }
+
+        try {
+          await fs.rename(input.oldPath, newPath)
+          return { success: true, newPath }
+        } catch (error) {
+          return { success: false, error: 'Failed to rename' }
+        }
       })
   }),
 
