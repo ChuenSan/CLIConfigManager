@@ -35,12 +35,22 @@
     "noClisRegistered": "未注册任何 CLI。",
     "remove": "移除",
     "globalIgnoreRules": "全局忽略规则",
-    "edit": "编辑"
+    "edit": "编辑",
+    "additionalPaths": "附加路径",
+    "addPath": "添加",
+    "noAdditionalPaths": "未配置附加路径"
   },
   "addCli": {
     "title": "添加 CLI",
     "namePlaceholder": "CLI 名称（例如：Claude）",
     "pathPlaceholder": "安装路径（例如：C:\\Users\\a\\.claude）",
+    "cancel": "取消",
+    "add": "添加"
+  },
+  "addPath": {
+    "title": "添加附加路径",
+    "aliasPlaceholder": "别名（例如：config）",
+    "pathPlaceholder": "路径（例如：C:\\Users\\...）",
     "cancel": "取消",
     "add": "添加"
   },

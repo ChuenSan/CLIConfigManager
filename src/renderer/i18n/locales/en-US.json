@@ -35,12 +35,22 @@
     "noClisRegistered": "No CLIs registered.",
     "remove": "Remove",
     "globalIgnoreRules": "Global Ignore Rules",
-    "edit": "Edit"
+    "edit": "Edit",
+    "additionalPaths": "Additional Paths",
+    "addPath": "Add",
+    "noAdditionalPaths": "No additional paths configured"
   },
   "addCli": {
     "title": "Add CLI",
     "namePlaceholder": "CLI name (e.g., Claude)",
     "pathPlaceholder": "Install path (e.g., C:\\Users\\a\\.claude)",
+    "cancel": "Cancel",
+    "add": "Add"
+  },
+  "addPath": {
+    "title": "Add Additional Path",
+    "aliasPlaceholder": "Alias (e.g., config)",
+    "pathPlaceholder": "Path (e.g., C:\\Users\\...)",
     "cancel": "Cancel",
     "add": "Add"
   },

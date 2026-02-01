@@ -64,8 +64,10 @@ export class ProjectService {
       if (!cliKey) {
         return { success: false, error: `CLI "${cliName}" is not registered` }
       }
+      const cliEntry = settings.cliRegistry[cliKey]
       linkedCLIs[cliKey] = {
-        snapshotInstallPath: settings.cliRegistry[cliKey].installPath
+        snapshotInstallPath: cliEntry.installPath,
+        snapshotAdditionalPaths: cliEntry.additionalPaths
       }
     }
 
@@ -123,9 +125,11 @@ export class ProjectService {
       return { success: false, error: 'CLI already linked' }
     }
 
-    // Add to linkedCLIs
+    // Add to linkedCLIs with additionalPaths
+    const cliEntry = settings.cliRegistry[cliKey]
     meta.linkedCLIs[cliKey] = {
-      snapshotInstallPath: settings.cliRegistry[cliKey].installPath
+      snapshotInstallPath: cliEntry.installPath,
+      snapshotAdditionalPaths: cliEntry.additionalPaths
     }
 
     // Create CLI directory

@@ -42,6 +42,28 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         return SettingsService.updateLanguage(input.language)
+      }),
+
+    addAdditionalPath: publicProcedure
+      .input(z.object({
+        cliName: z.string(),
+        alias: z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/),
+        path: z.string().min(1)
+      }))
+      .mutation(async ({ input }) => {
+        return SettingsService.addAdditionalPath(input.cliName, {
+          alias: input.alias,
+          path: input.path
+        })
+      }),
+
+    removeAdditionalPath: publicProcedure
+      .input(z.object({
+        cliName: z.string(),
+        alias: z.string()
+      }))
+      .mutation(async ({ input }) => {
+        return SettingsService.removeAdditionalPath(input.cliName, input.alias)
       })
   }),
 
@@ -142,6 +164,16 @@ export const appRouter = router({
         const meta = await ProjectService.getMeta(input.projectName)
         if (!meta) return { success: false, error: 'Project not found' }
 
+        // Build additionalFilesMap from settings (use latest additionalPaths)
+        const settings = await SettingsService.read()
+        const additionalFilesMap: Record<string, Array<{ alias: string; path: string }>> = {}
+        for (const cli of input.cliNames) {
+          const additionalPaths = settings.cliRegistry[cli]?.additionalPaths
+          if (additionalPaths) {
+            additionalFilesMap[cli] = additionalPaths
+          }
+        }
+
         return SnapshotService.create(
           {
             projectName: input.projectName,
@@ -150,7 +182,8 @@ export const appRouter = router({
             source: 'manual-backup',
             notes: input.notes
           },
-          (cli) => meta.linkedCLIs[cli]?.snapshotInstallPath || ''
+          (cli) => meta.linkedCLIs[cli]?.snapshotInstallPath || '',
+          additionalFilesMap
         )
       }),
 

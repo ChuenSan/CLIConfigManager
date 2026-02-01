@@ -6,7 +6,7 @@ import { useSettingsStore } from './stores/settingsStore'
 import { useProjectStore } from './stores/projectStore'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { ConfirmDialog } from './components/ConfirmDialog'
-import { FolderOpen, Settings, X } from 'lucide-react'
+import { FolderOpen, Settings, X, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { clsx } from 'clsx'
 import i18n from './i18n'
@@ -325,6 +325,10 @@ function SettingsPage() {
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [editingIgnore, setEditingIgnore] = useState(false)
   const [ignoreText, setIgnoreText] = useState('')
+  const [expandedClis, setExpandedClis] = useState<Set<string>>(new Set())
+  const [showAddPathDialog, setShowAddPathDialog] = useState<string | null>(null)
+  const [newPathAlias, setNewPathAlias] = useState('')
+  const [newPathPath, setNewPathPath] = useState('')
 
   const settingsQuery = trpc.settings.get.useQuery(undefined, {
     onSuccess: setSettings
@@ -356,9 +360,36 @@ function SettingsPage() {
     onSuccess: () => settingsQuery.refetch()
   })
 
+  const addAdditionalPathMutation = trpc.settings.addAdditionalPath.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        settingsQuery.refetch()
+        setShowAddPathDialog(null)
+        setNewPathAlias('')
+        setNewPathPath('')
+      }
+    }
+  })
+
+  const removeAdditionalPathMutation = trpc.settings.removeAdditionalPath.useMutation({
+    onSuccess: () => settingsQuery.refetch()
+  })
+
   const handleLanguageChange = (lang: 'zh-CN' | 'en-US') => {
     i18n.changeLanguage(lang)
     updateLanguageMutation.mutate({ language: lang })
+  }
+
+  const toggleCliExpanded = (cliName: string) => {
+    setExpandedClis(prev => {
+      const next = new Set(prev)
+      if (next.has(cliName)) {
+        next.delete(cliName)
+      } else {
+        next.add(cliName)
+      }
+      return next
+    })
   }
 
   if (!settings) return <div className="flex-1 p-6 bg-app-bg text-app-text-muted">{t('editCli.loading')}</div>
@@ -396,20 +427,75 @@ function SettingsPage() {
           <p className="text-app-text-muted">{t('settings.noClisRegistered')}</p>
         ) : (
           <div className="space-y-2">
-            {Object.entries(settings.cliRegistry).map(([name, { installPath }]) => (
-              <div key={name} className="bg-app-surface rounded-lg p-3 flex justify-between items-center border border-app-border">
-                <div>
-                  <span className="font-medium text-app-text">{name}</span>
-                  <span className="text-app-text-muted text-sm ml-2">{installPath}</span>
+            {Object.entries(settings.cliRegistry).map(([name, cliEntry]) => {
+              const isExpanded = expandedClis.has(name)
+              const additionalPaths = cliEntry.additionalPaths || []
+              return (
+                <div key={name} className="bg-app-surface rounded-lg border border-app-border">
+                  <div className="p-3 flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleCliExpanded(name)}
+                        className="text-app-text-muted hover:text-app-text transition-colors"
+                      >
+                        {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      </button>
+                      <div>
+                        <span className="font-medium text-app-text">{name}</span>
+                        <span className="text-app-text-muted text-sm ml-2">{cliEntry.installPath}</span>
+                        {additionalPaths.length > 0 && (
+                          <span className="text-primary text-xs ml-2">+{additionalPaths.length}</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeCliMutation.mutate({ name })}
+                      className="text-danger hover:text-red-400 transition-colors text-sm"
+                    >
+                      {t('settings.remove')}
+                    </button>
+                  </div>
+                  {isExpanded && (
+                    <div className="px-3 pb-3 pt-1 border-t border-app-border">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs text-app-text-muted uppercase tracking-wider">
+                          {t('settings.additionalPaths', 'Additional Paths')}
+                        </span>
+                        <button
+                          onClick={() => setShowAddPathDialog(name)}
+                          className="flex items-center gap-1 text-xs text-primary hover:text-primary-hover transition-colors"
+                        >
+                          <Plus size={12} />
+                          {t('settings.addPath', 'Add')}
+                        </button>
+                      </div>
+                      {additionalPaths.length === 0 ? (
+                        <p className="text-xs text-app-text-muted italic">
+                          {t('settings.noAdditionalPaths', 'No additional paths configured')}
+                        </p>
+                      ) : (
+                        <div className="space-y-1">
+                          {additionalPaths.map((ap) => (
+                            <div key={ap.alias} className="flex justify-between items-center bg-app-bg rounded px-2 py-1.5 text-sm">
+                              <div>
+                                <span className="text-primary font-mono">{ap.alias}</span>
+                                <span className="text-app-text-muted ml-2">{ap.path}</span>
+                              </div>
+                              <button
+                                onClick={() => removeAdditionalPathMutation.mutate({ cliName: name, alias: ap.alias })}
+                                className="text-app-text-muted hover:text-danger transition-colors"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <button
-                  onClick={() => removeCliMutation.mutate({ name })}
-                  className="text-danger hover:text-red-400 transition-colors text-sm"
-                >
-                  {t('settings.remove')}
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </section>
@@ -500,6 +586,58 @@ function SettingsPage() {
                 className="px-4 py-2 bg-primary text-white rounded-md text-sm hover:bg-primary-hover transition-colors"
               >
                 {t('editIgnore.save')}
+              </button>
+            </div>
+            <Dialog.Close asChild>
+              <button className="absolute top-4 right-4 text-app-text-muted hover:text-app-text transition-colors">
+                <X size={18} />
+              </button>
+            </Dialog.Close>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root open={!!showAddPathDialog} onOpenChange={(open) => !open && setShowAddPathDialog(null)}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
+          <Dialog.Content aria-describedby={undefined} className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-app-surface rounded-xl p-6 w-96 border border-app-border shadow-2xl animate-slide-in">
+            <Dialog.Title className="text-lg font-semibold text-app-text mb-4">
+              {t('addPath.title', 'Add Additional Path')}
+            </Dialog.Title>
+            <input
+              type="text"
+              placeholder={t('addPath.aliasPlaceholder', 'Alias (e.g., config)')}
+              value={newPathAlias}
+              onChange={(e) => setNewPathAlias(e.target.value)}
+              className="w-full px-3 py-2 bg-app-bg border border-app-border rounded-md text-app-text placeholder:text-app-text-muted mb-3 focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+            />
+            <input
+              type="text"
+              placeholder={t('addPath.pathPlaceholder', 'Path (e.g., C:\\Users\\...)')}
+              value={newPathPath}
+              onChange={(e) => setNewPathPath(e.target.value)}
+              className="w-full px-3 py-2 bg-app-bg border border-app-border rounded-md text-app-text placeholder:text-app-text-muted mb-4 focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <div className="flex justify-end gap-2">
+              <Dialog.Close asChild>
+                <button className="px-4 py-2 bg-app-surface-hover text-app-text rounded-md text-sm hover:bg-app-border transition-colors">
+                  {t('addPath.cancel', 'Cancel')}
+                </button>
+              </Dialog.Close>
+              <button
+                onClick={() => {
+                  if (showAddPathDialog) {
+                    addAdditionalPathMutation.mutate({
+                      cliName: showAddPathDialog,
+                      alias: newPathAlias,
+                      path: newPathPath
+                    })
+                  }
+                }}
+                disabled={!newPathAlias.trim() || !newPathPath.trim()}
+                className="px-4 py-2 bg-primary text-white rounded-md text-sm hover:bg-primary-hover transition-colors disabled:opacity-50"
+              >
+                {t('addPath.add', 'Add')}
               </button>
             </div>
             <Dialog.Close asChild>

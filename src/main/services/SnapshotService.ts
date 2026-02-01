@@ -1,6 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
-import { SnapshotMeta, SnapshotMetaSchema } from '@shared/types'
+import { SnapshotMeta, SnapshotMetaSchema, AdditionalPath } from '@shared/types'
 import { MAX_SNAPSHOTS_PER_PROJECT } from '@shared/constants'
 import { ProjectService } from './ProjectService'
 
@@ -10,6 +10,10 @@ export interface SnapshotOptions {
   snapshotType: 'full' | 'partial'
   source: SnapshotMeta['source']
   notes?: string
+}
+
+export interface AdditionalFilesMap {
+  [cliName: string]: AdditionalPath[]
 }
 
 export class SnapshotService {
@@ -61,7 +65,8 @@ export class SnapshotService {
 
   static async create(
     options: SnapshotOptions,
-    sourceGetter: (cli: string) => string
+    sourceGetter: (cli: string) => string,
+    additionalFilesMap?: AdditionalFilesMap
   ): Promise<{ success: boolean; timestamp?: string; error?: string }> {
     const timestamp = this.generateTimestamp()
     const backupDir = path.join(ProjectService.getProjectPath(options.projectName), 'backup')
@@ -75,11 +80,35 @@ export class SnapshotService {
       for (const cli of options.cliNames) {
         const sourcePath = sourceGetter(cli)
         const destPath = path.join(tempDir, cli)
-        await this.copyDirectory(sourcePath, destPath)
+
+        // Copy main path
+        try {
+          await this.copyDirectory(sourcePath, destPath)
+        } catch (error) {
+          const err = error as NodeJS.ErrnoException
+          if (err.code !== 'ENOENT') throw error
+        }
+
+        // Copy additional files (single files only)
+        const additionalFiles = additionalFilesMap?.[cli] || []
+        for (const ap of additionalFiles) {
+          try {
+            const srcStat = await fs.stat(ap.path)
+            if (srcStat.isFile()) {
+              // Create _additionalFiles subdirectory for additional files backup
+              const additionalBackupDir = path.join(destPath, '_additionalFiles')
+              await fs.mkdir(additionalBackupDir, { recursive: true })
+              const fileName = path.basename(ap.path)
+              await fs.copyFile(ap.path, path.join(additionalBackupDir, fileName))
+            }
+          } catch {
+            // Skip if file doesn't exist
+          }
+        }
       }
 
       // Write meta.json
-      const meta: SnapshotMeta = {
+      const snapshotMeta: SnapshotMeta = {
         timestamp,
         snapshotType: options.snapshotType,
         includedCLIs: options.cliNames,
@@ -89,7 +118,7 @@ export class SnapshotService {
       }
       await fs.writeFile(
         path.join(tempDir, 'meta.json'),
-        JSON.stringify(meta, null, 2),
+        JSON.stringify(snapshotMeta, null, 2),
         'utf-8'
       )
 

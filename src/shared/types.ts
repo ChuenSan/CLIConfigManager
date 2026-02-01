@@ -1,8 +1,16 @@
 import { z } from 'zod'
 
+// Additional path entry
+export const AdditionalPathSchema = z.object({
+  alias: z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/, 'Alias must be alphanumeric with _ or -'),
+  path: z.string().min(1)
+})
+export type AdditionalPath = z.infer<typeof AdditionalPathSchema>
+
 // CLI Registry entry
 export const CliEntrySchema = z.object({
-  installPath: z.string().min(1)
+  installPath: z.string().min(1),
+  additionalPaths: z.array(AdditionalPathSchema).optional()
 })
 export type CliEntry = z.infer<typeof CliEntrySchema>
 
@@ -25,7 +33,8 @@ export const ProjectMetaSchema = z.object({
   projectName: z.string().min(1),
   createdTime: z.string(), // ISO 8601 UTC
   linkedCLIs: z.record(z.string(), z.object({
-    snapshotInstallPath: z.string()
+    snapshotInstallPath: z.string(),
+    snapshotAdditionalPaths: z.array(AdditionalPathSchema).optional()
   }))
 })
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>

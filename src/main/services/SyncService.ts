@@ -2,11 +2,11 @@ import fs from 'fs/promises'
 import path from 'path'
 import { Ignore } from 'ignore'
 import { LARGE_FILE_THRESHOLD } from '@shared/constants'
-import { FileNode, OperationResult } from '@shared/types'
+import { FileNode, OperationResult, AdditionalPath } from '@shared/types'
 import { ProjectService } from './ProjectService'
 import { SettingsService } from './SettingsService'
 import { IgnoreService } from './IgnoreService'
-import { SnapshotService } from './SnapshotService'
+import { SnapshotService, AdditionalFilesMap } from './SnapshotService'
 
 const DEBUG = true
 function debugLog(msg: string, data?: unknown) {
@@ -19,7 +19,7 @@ export interface LargeFileInfo {
 }
 
 export class SyncService {
-  // Import: installPath -> Working Copy
+  // Import: installPath + additionalPaths (single files) -> Working Copy (flat structure)
   static async import(
     projectName: string,
     cliName: string,
@@ -33,14 +33,16 @@ export class SyncService {
     )
     if (!cliKey) return { success: false, errors: ['CLI not linked to project'] }
 
-    const installPath = meta.linkedCLIs[cliKey].snapshotInstallPath
+    const linkedCli = meta.linkedCLIs[cliKey]
+    const installPath = linkedCli.snapshotInstallPath
     const workingCopy = path.join(ProjectService.getProjectPath(projectName), cliKey)
 
-    // Compile ignore rules
+    // Compile ignore rules and get latest additionalPaths from settings
     const settings = await SettingsService.read()
+    const additionalPaths = settings.cliRegistry[cliKey]?.additionalPaths || []
     const ig = IgnoreService.compile(cliKey, settings)
 
-    // Check for large files first
+    // Check for large files in main path
     if (!skipLargeFileCheck) {
       const largeFiles = await this.findLargeFiles(installPath, ig)
       if (largeFiles.length > 0) {
@@ -52,14 +54,34 @@ export class SyncService {
     await fs.rm(workingCopy, { recursive: true, force: true })
     await fs.mkdir(workingCopy, { recursive: true })
 
-    // Copy files
     const warnings: string[] = []
-    await this.copyWithIgnore(installPath, workingCopy, ig, '', warnings)
+
+    // Step 1: Copy main path content
+    try {
+      await this.copyWithIgnore(installPath, workingCopy, ig, '', warnings)
+    } catch (error) {
+      await fs.rm(workingCopy, { recursive: true, force: true })
+      return { success: false, errors: [`Failed to import from ${installPath}: ${error instanceof Error ? error.message : 'Unknown error'}`] }
+    }
+
+    // Step 2: Copy additional files directly to working copy root
+    for (const ap of additionalPaths) {
+      try {
+        const srcStat = await fs.stat(ap.path)
+        if (srcStat.isFile()) {
+          const fileName = path.basename(ap.path)
+          await fs.copyFile(ap.path, path.join(workingCopy, fileName))
+        }
+        // Ignore directories for additional paths (only single files supported)
+      } catch (error) {
+        warnings.push(`Failed to import additional file ${ap.path}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    }
 
     return { success: true, warnings: warnings.length > 0 ? warnings : undefined }
   }
 
-  // Apply: Working Copy -> installPath (with auto-backup)
+  // Apply: Working Copy -> installPath + additionalPaths (with auto-backup)
   static async apply(
     projectName: string,
     cliName: string,
@@ -75,18 +97,26 @@ export class SyncService {
     )
     if (!cliKey) return { success: false, errors: ['CLI not linked to project'] }
 
-    const installPath = meta.linkedCLIs[cliKey].snapshotInstallPath
+    const linkedCli = meta.linkedCLIs[cliKey]
+    const installPath = linkedCli.snapshotInstallPath
     const workingCopy = path.join(ProjectService.getProjectPath(projectName), cliKey)
 
-    debugLog(`installPath: ${installPath} (len=${installPath.length})`)
-    debugLog(`workingCopy: ${workingCopy} (len=${workingCopy.length})`)
-
-    // Compile ignore rules
+    // Compile ignore rules and get latest additionalPaths from settings
     const settings = await SettingsService.read()
+    const additionalPaths = settings.cliRegistry[cliKey]?.additionalPaths || []
     const ig = IgnoreService.compile(cliKey, settings)
+
+    // Build a map of additional file names to their original paths
+    const additionalFileMap = new Map<string, string>()
+    for (const ap of additionalPaths) {
+      const fileName = path.basename(ap.path)
+      additionalFileMap.set(fileName.toLowerCase(), ap.path)
+    }
+    debugLog(`additionalFileMap:`, Object.fromEntries(additionalFileMap))
 
     // Step 1: Create auto-backup (BR-05)
     const snapshotType = selectedPaths ? 'partial' : 'full'
+    const additionalFilesMap: AdditionalFilesMap = { [cliKey]: additionalPaths }
     const backupResult = await SnapshotService.create(
       {
         projectName,
@@ -94,7 +124,8 @@ export class SyncService {
         snapshotType,
         source: 'auto-apply-backup'
       },
-      () => installPath
+      (cli) => installPath,
+      additionalFilesMap
     )
 
     if (!backupResult.success) {
@@ -110,20 +141,65 @@ export class SyncService {
         for (const relPath of selectedPaths) {
           if (IgnoreService.isIgnored(ig, relPath)) continue
 
-          const srcPath = path.join(workingCopy, relPath)
-          const destPath = path.join(installPath, relPath)
+          const srcFile = path.join(workingCopy, relPath)
+          const fileName = path.basename(relPath)
 
-          const stat = await fs.stat(srcPath)
-          if (stat.isDirectory()) {
-            await this.copyWithIgnore(srcPath, destPath, ig, relPath, warnings)
+          // Check if this is an additional file (root-level file matching additional path)
+          const additionalOrigPath = additionalFileMap.get(fileName.toLowerCase())
+          const isRootLevel = !relPath.includes('/') && !relPath.includes('\\')
+
+          let destFile: string
+          if (isRootLevel && additionalOrigPath) {
+            // This is an additional file - apply to its original path
+            destFile = additionalOrigPath
           } else {
-            await fs.mkdir(path.dirname(destPath), { recursive: true })
-            await this.safeCopyFile(srcPath, destPath, relPath)
+            // Regular file - apply to main path
+            destFile = path.join(installPath, relPath)
+          }
+
+          try {
+            const stat = await fs.stat(srcFile)
+            if (stat.isDirectory()) {
+              await this.copyWithIgnore(srcFile, destFile, ig, relPath, warnings)
+            } else {
+              await fs.mkdir(path.dirname(destFile), { recursive: true })
+              await this.safeCopyFile(srcFile, destFile, relPath)
+            }
+          } catch {
+            // File may not exist, skip
           }
         }
       } else {
         // Full apply
-        await this.copyWithIgnore(workingCopy, installPath, ig, '', warnings)
+        // First, apply all files to main path (except additional files)
+        const entries = await fs.readdir(workingCopy, { withFileTypes: true })
+
+        for (const entry of entries) {
+          const relPath = entry.name
+          if (entry.isSymbolicLink()) {
+            warnings.push(`Skipped symlink: ${relPath}`)
+            continue
+          }
+
+          const srcPath = path.join(workingCopy, entry.name)
+          const additionalOrigPath = additionalFileMap.get(entry.name.toLowerCase())
+
+          if (entry.isFile() && additionalOrigPath) {
+            // This is an additional file - apply to its original path (bypass ignore rules)
+            await fs.mkdir(path.dirname(additionalOrigPath), { recursive: true })
+            await this.safeCopyFile(srcPath, additionalOrigPath, entry.name)
+          } else {
+            // Regular file/directory - check ignore rules
+            if (IgnoreService.isIgnored(ig, relPath, entry.isDirectory())) continue
+
+            const destPath = path.join(installPath, entry.name)
+            if (entry.isDirectory()) {
+              await this.copyWithIgnore(srcPath, destPath, ig, relPath, warnings)
+            } else {
+              await this.safeCopyFile(srcPath, destPath, relPath)
+            }
+          }
+        }
       }
 
       return { success: true, warnings: warnings.length > 0 ? warnings : undefined }
@@ -131,14 +207,6 @@ export class SyncService {
       // Step 3: Auto-rollback on failure (BR-12)
       const err = error as NodeJS.ErrnoException
       debugLog(`Apply FAILED, starting rollback...`)
-      debugLog(`Error: ${err.code} - ${err.message}`)
-      debugLog(`Error details:`, {
-        code: err.code,
-        errno: err.errno,
-        syscall: err.syscall,
-        path: err.path,
-        dest: (err as { dest?: string }).dest
-      })
 
       const snapshotPath = SnapshotService.getSnapshotPath(projectName, backupResult.timestamp!)
       const backupCliPath = path.join(snapshotPath, cliKey)
@@ -146,13 +214,12 @@ export class SyncService {
       try {
         await fs.rm(installPath, { recursive: true, force: true })
         await this.copyDirectory(backupCliPath, installPath)
-        debugLog(`Rollback SUCCESS`)
-      } catch (rollbackErr) {
-        debugLog(`Rollback FAILED:`, rollbackErr)
+      } catch {
+        debugLog(`Rollback failed`)
       }
 
       const errMsg = err.code === 'EPERM'
-        ? `EPERM: 权限被拒绝，文件可能被占用或只读\n源: ${err.path}\n目标: ${(err as { dest?: string }).dest}`
+        ? `EPERM: 权限被拒绝，文件可能被占用或只读`
         : (error instanceof Error ? error.message : 'Unknown error')
 
       return {
@@ -162,7 +229,7 @@ export class SyncService {
     }
   }
 
-  // Restore: Snapshot -> installPath
+  // Restore: Snapshot -> installPath + additional files
   static async restore(
     projectName: string,
     timestamp: string,
@@ -195,16 +262,52 @@ export class SyncService {
         continue
       }
 
-      const installPath = meta.linkedCLIs[cliKey].snapshotInstallPath
+      const linkedCli = meta.linkedCLIs[cliKey]
+      const installPath = linkedCli.snapshotInstallPath
+      const additionalPaths = linkedCli.snapshotAdditionalPaths || []
       const backupCliPath = path.join(snapshotPath, cliKey)
 
+      // Restore main path
       try {
         // Restore ignores current ignore rules (BR-08)
         await fs.rm(installPath, { recursive: true, force: true })
         await fs.mkdir(installPath, { recursive: true })
-        await this.copyDirectory(backupCliPath, installPath)
+
+        // Copy all files except _additionalFiles directory
+        const entries = await fs.readdir(backupCliPath, { withFileTypes: true })
+        for (const entry of entries) {
+          if (entry.name === '_additionalFiles') continue
+          const srcPath = path.join(backupCliPath, entry.name)
+          const destPath = path.join(installPath, entry.name)
+          if (entry.isDirectory()) {
+            await this.copyDirectory(srcPath, destPath)
+          } else {
+            await fs.copyFile(srcPath, destPath)
+          }
+        }
       } catch (error) {
-        errors.push(`Failed to restore ${cli}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        const err = error as NodeJS.ErrnoException
+        errors.push(`Failed to restore ${cli}: ${err.message}`)
+      }
+
+      // Restore additional files
+      const additionalBackupDir = path.join(backupCliPath, '_additionalFiles')
+      try {
+        await fs.access(additionalBackupDir)
+        // Restore each additional file to its original path
+        for (const ap of additionalPaths) {
+          const fileName = path.basename(ap.path)
+          const backupFilePath = path.join(additionalBackupDir, fileName)
+          try {
+            await fs.access(backupFilePath)
+            await fs.mkdir(path.dirname(ap.path), { recursive: true })
+            await fs.copyFile(backupFilePath, ap.path)
+          } catch {
+            // File not in backup, skip
+          }
+        }
+      } catch {
+        // No _additionalFiles directory, skip
       }
     }
 
